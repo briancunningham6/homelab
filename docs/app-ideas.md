@@ -82,6 +82,21 @@ Copy this template and fill in what you know. Not every field is required at the
 
 ---
 
+### Jellyfin
+
+| Field | Detail |
+|-------|--------|
+| Media streaming service | hosts videos and music|
+| **Purpose** | |
+| **Upstream** | |
+| **Docker ready** | |
+| **Auth support** | |
+| **Storage needs** | |
+| **Priority** | |
+| **Status** | Idea |
+
+**Notes:** 
+
 <!-- 
 ### Template — copy this for new ideas
 
