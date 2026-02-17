@@ -153,6 +153,7 @@ graph TB
     ├── onboarding.md             # admin bootstrap and user management
     ├── teardown.md               # controlled teardown and reinstall
     ├── app-ideas.md              # candidate application tracker
+    ├── dependencies.md           # licensing, dependencies, portability
     ├── inventory.md
     ├── access-matrix.md
     ├── nodes.md
@@ -302,6 +303,7 @@ The architecture supports scaling beyond one Mac mini by adding specialised node
 | [docs/onboarding.md](docs/onboarding.md) | Admin bootstrap and user management |
 | [docs/teardown.md](docs/teardown.md) | Controlled teardown and clean reinstall procedures |
 | [docs/app-ideas.md](docs/app-ideas.md) | Candidate application ideas and research tracker |
+| [docs/dependencies.md](docs/dependencies.md) | Software dependencies, licensing risks, and platform portability |
 | [docs/notes/mac-mini.md](docs/notes/mac-mini.md) | Hardware-specific notes for the Mac mini |
 | [docs/adrs/](docs/adrs/) | Architecture Decision Records |
 | [docs/inventory.md](docs/inventory.md) | Service inventory (ports, domains, owners, backup targets) |

@@ -31,3 +31,7 @@ When external SSD is attached:
 ```
 
 These paths are referenced in Compose files. If the volume is not mounted, storage guardrails prevent apps from starting in write mode (see [ops-standard.md](../ops-standard.md)).
+
+## Portability
+
+The macOS-specific touchpoints in this platform are documented in [dependencies.md](../dependencies.md) §3. The architecture is designed to be portable to Linux — the only macOS-specific items are Docker Desktop/Colima, launchd plists, and storage mount paths. All containerised services run identically on both platforms.
