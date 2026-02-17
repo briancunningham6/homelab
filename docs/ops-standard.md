@@ -306,3 +306,248 @@ Some apps depend on shared services (e.g., PostgreSQL, Redis). When updating the
 - Do not update multiple apps at once — if something breaks, you won't know which update caused it.
 - Do not skip the pre-update backup — "it's just a minor version" is how data gets lost.
 - Do not update Authentik and an app in the same session — update and verify Authentik separately.
+
+---
+
+## 6. Testing and Validation Standard
+
+**Goal:** Validate that applications deploy correctly, integrate with the platform, and remain healthy under production load — before they affect users.
+
+### Test environment setup
+
+#### Option A: Dedicated test host (preferred, when hardware available)
+
+A separate machine (Linux VM, spare hardware, or future app node) that mirrors the production homelab stack:
+
+```text
+Test environment setup:
+
+1. Clone the main homelab repo to the test node
+2. Stand up parallel compose stacks:
+   - platform-test/ (Caddy, Authentik, Uptime Kuma, etc.)
+   - apps/test-<app-name>/
+3. Use test subdomains (e.g., test-<app>.local, login-test.local)
+4. Isolate network from production (separate Docker network or VLAN)
+5. Use test data, not production backups
+```
+
+**Advantages:**
+- No risk to production
+- Can test multiple deployments in parallel
+- Can test hardware/failover scenarios
+- Can leave it running continuously for smoke testing
+
+**Disadvantages:**
+- Requires extra hardware or VM capacity
+- Ongoing maintenance burden
+
+#### Option B: Parallel compose stacks on production host (lighter alternative)
+
+Run test stacks alongside production on the same host, isolated by Docker networks:
+
+```bash
+# Production stacks use default bridge network
+cd ~/homelab/platform/authentik && docker compose up -d
+
+# Test stacks use isolated networks
+cd ~/homelab/platform-test/authentik && docker compose -p test up -d
+
+# Separate ports to avoid conflicts
+# prod: localhost:9000, test: localhost:9001
+```
+
+**Advantages:**
+- No extra hardware needed
+- Quick to spin up and tear down
+- Can run before production deployments
+
+**Disadvantages:**
+- Shares resources with production (disk, memory)
+- Requires disciplined cleanup to avoid clutter
+
+### Application deployment testing workflow
+
+For every new or updated application, follow this testing sequence **before** deploying to production:
+
+#### Step 1: Test compose file syntax
+
+```bash
+cd ~/homelab/apps/test-<app-name>
+docker compose config > /dev/null && echo "Compose file valid"
+```
+
+Catches YAML errors early.
+
+#### Step 2: Build or pull image
+
+```bash
+docker compose pull
+# Or if custom Dockerfile:
+docker compose build
+```
+
+Verify the image exists and downloads/builds without error.
+
+#### Step 3: Start in test environment
+
+```bash
+docker compose up -d
+sleep 10  # Wait for service to initialize
+docker compose logs --tail=50  # Check for startup errors
+```
+
+Monitor for:
+- Container starts and stays running
+- No crash loops (exit code 0 in logs)
+- Secrets and env vars properly injected
+
+#### Step 4: Health check validation
+
+```bash
+# Check the app's health endpoint
+curl -v http://localhost:<test-port>/health
+
+# Check Uptime Kuma integration (if applicable)
+# Monitor the test health check in Uptime Kuma for pass/fail
+```
+
+Expected: HTTP 200 or equivalent healthy response.
+
+#### Step 5: SSO integration test
+
+If the app uses Authentik:
+
+```bash
+# 1. Visit the test app URL (e.g., http://test-immich.local/)
+# 2. Redirected to test Authentik login
+# 3. Log in with test user in appropriate group
+# 4. Redirected back to app with authenticated session
+# 5. Verify user's group membership appears in app role/permissions
+```
+
+Test at least:
+- Admin user login and access
+- Standard user login and access
+- Child user (if applicable) login with restrictions
+
+#### Step 6: Backup/restore test (for data-bearing apps)
+
+```bash
+# 1. Create initial test data (upload a file, create a user, etc.)
+# 2. Run a backup of the test app
+# 3. Simulate failure: delete or corrupt test data
+# 4. Restore from the backup
+# 5. Verify all test data returned to the state before corruption
+```
+
+Catches backup incompleteness before you need it in production.
+
+#### Step 7: Load/stress test (optional, for resource-heavy apps)
+
+For apps expected to handle concurrent users or heavy operations (Immich with large photo library, AI inference):
+
+```bash
+# Light load test (example: Immich photo re-indexing)
+# Monitor CPU, RAM, disk I/O during the test
+# Verify the app completes without crashing or hanging
+
+# Tools: Apache JMeter (load testing), Docker stats (resource monitoring)
+docker stats <container-id>
+```
+
+Helps identify resource limits before production surprise.
+
+#### Step 8: Teardown and cleanup
+
+```bash
+cd ~/homelab/apps/test-<app-name>
+docker compose down
+docker volume rm test-<app-name>_<volume-name>  # Clean up test data volumes
+```
+
+Complete cleanup prevents leftover test containers/volumes from accumulating.
+
+### Validation checklist
+
+Copy and fill in for each deployment. Record in `docs/runbook.md`:
+
+```markdown
+### Deployment Test — <app-name> — [DATE]
+
+**App version tested:** [version]
+**Deployment target:** Test environment [A/B]
+
+- [ ] 1. Compose syntax valid
+- [ ] 2. Image pulled/built successfully
+- [ ] 3. Container starts and stays running
+- [ ] 4. Health endpoint responds 200 OK
+- [ ] 5. Authentik SSO flow works (admin user login)
+- [ ] 6. Authentik SSO flow works (standard user login)
+- [ ] 7. Group-based role mapping verified
+- [ ] 8. Backup created and restore test passed
+- [ ] 9. Load test passed (if applicable) — notes: [resource usage]
+- [ ] 10. All test data cleaned up
+
+**Result:** Ready for production / BLOCKED with issues:
+- [If blocked: describe the issue and blocker]
+
+**Approval:** [your name/date]
+```
+
+### Automated testing via CI/CD
+
+For future (when the platform matures), consider automating tests:
+
+| Tool | Purpose |
+|------|---------|
+| **GitHub Actions** (or Gitea CI) | Run tests on pull requests — validate Compose files, build Docker images, run linters |
+| **Shell script test harness** | Local wrapper script that runs the full 8-step test sequence, reports pass/fail |
+| **Compose extension hooks** | Use Docker Compose hooks (when available) to run health checks automatically after compose up |
+
+**Starter CI workflow:** On each PR to main, run `docker compose config`, lint YAML, build custom images, and validate app-contract.yaml.
+
+### Test data management
+
+Test environments should never use production data:
+
+| Scenario | Data source |
+|----------|-------------|
+| **New app** | Synthetic test data (sample files, dummy user accounts) |
+| **Major app version upgrade** | Restore from a backup (that's NOT the current production backup) — ideally a 1-week-old backup to test migration without current production state |
+| **DR drill simulator** | Use a copy of production backup, but in a completely isolated test environment |
+
+**Retention:** Test backups older than 7 days can be deleted. Keep 1–2 weeks of test snapshots to simulate real restore scenarios.
+
+### Post-deployment validation (production smoke test)
+
+After deploying an app to production:
+
+1. **Health monitoring:** Let Uptime Kuma monitor for 24 hours. Check for any intermittent failures.
+2. **User acceptance:** Have a family member test the app's key workflows.
+3. **Log review:** Check app logs daily for 3–5 days. Look for errors or warnings.
+4. **Dashboard visibility:** Verify the app appears healthy on the Homepage dashboard.
+
+If any issue surfaces, execute the rollback procedure from [§5: Application Update Standard](#5-application-update-standard).
+
+### What to test before each major rollout
+
+| Scenario | Test frequency |
+|----------|----------------|
+| **New app deployment** | Full 8-step sequence, before production |
+| **app version update** | Full 8-step sequence + backup/restore, before production |
+| **Platform service update** (Authentik, Caddy) | Full sequence + cross-app SSO verification, before production |
+| **Major OS or Docker version change** | All platform services deployed in test env, verify boot sequence and recovery |
+| **Disaster recovery drill** | Quarterly — full 8-step sequence plus multi-app restore from offsite backup |
+
+---
+
+## Testing environment best practices
+
+| Practice | Why |
+|----------|-----|
+| **Isolate test from production** | A test container failure should never affect production services |
+| **Use disposable test data** | Never restore actual user data to test — use synthetic or dummy data |
+| **Automate repetitive checks** | Write a shell script for the 8-step sequence; run it every deployment |
+| **Document failures and fixes** | If a test fails, record why and how you fixed it — informs future tests |
+| **Clean up after every test** | Lingering test containers/volumes make the next test less reliable |
+| **Test in an order** | Identity → Platform → Applications (dependent services first) |
