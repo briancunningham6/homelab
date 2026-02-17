@@ -154,6 +154,7 @@ graph TB
 │   └── dr-verify
 └── docs/
     ├── control-panel.md          # homelab control panel design outline
+    ├── security.md               # security model, threat model, controls
     ├── app-spec.md              # developer application specification
     ├── ops-standard.md          # backup, DR, security, restart standards
     ├── rollout-plan.md          # phased implementation plan
@@ -305,6 +306,7 @@ The architecture supports scaling beyond one Mac mini by adding specialised node
 | Document | Purpose |
 |----------|---------|
 | [docs/control-panel.md](docs/control-panel.md) | Homelab Control Panel — unified admin management interface |
+| [docs/security.md](docs/security.md) | Security model — threat model, controls, accepted risks, agent security |
 | [docs/app-spec.md](docs/app-spec.md) | Developer application specification — how to build apps for this platform |
 | [docs/ops-standard.md](docs/ops-standard.md) | Operational standards — backup, DR, security, restart/recovery |
 | [docs/rollout-plan.md](docs/rollout-plan.md) | Phased implementation plan and status tracking |
