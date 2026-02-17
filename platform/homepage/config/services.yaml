@@ -1,4 +1,10 @@
 - Platform:
+    - Homepage:
+        href: http://home.home
+        description: Dashboard
+        icon: homepage
+        server: my-docker
+        container: homepage
     - Dockge:
         href: http://dockge.home
         description: Stack Management

@@ -1,22 +1,18 @@
-# ── Secrets ──────────────────────────────────────────────────────────────────
+# ── Secrets ───────────────────────────────────────────────────────────────────
 # Never commit .env files — use .env.example instead
-.env
-*.env
+**/.env
+!**/.env.example
 
 # ── Persistent state / runtime data ──────────────────────────────────────────
-# Docker volumes and bind-mount data directories
-data/
-backups/
+**/data/
+**/backups/
 
-# ── macOS system files ────────────────────────────────────────────────────────
+# ── macOS ─────────────────────────────────────────────────────────────────────
 .DS_Store
-.DS_Store?
+**/.DS_Store
 ._*
 .Spotlight-V100
 .Trashes
-Icon?
-ehthumbs.db
-Thumbs.db
 
 # ── Editor / IDE ──────────────────────────────────────────────────────────────
 .vscode/
@@ -25,11 +21,13 @@ Thumbs.db
 *.swo
 *~
 
+# ── Docker ────────────────────────────────────────────────────────────────────
+**/docker-compose.override.yml
+
 # ── Compiled / generated output ──────────────────────────────────────────────
 *.pyc
 __pycache__/
 *.pyo
-*.pyd
 *.class
 *.o
 *.obj
@@ -40,10 +38,5 @@ __pycache__/
 dist/
 build/
 *.egg-info/
-.eggs/
 node_modules/
-.npm/
 *.log
-
-# ── Tailscale state ───────────────────────────────────────────────────────────
-platform/tailscale/data/

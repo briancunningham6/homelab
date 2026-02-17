@@ -18,17 +18,19 @@
 
 **Goal:** Core platform running with monitoring and documentation.
 
+> Infrastructure files created via agent tasks. Deployment pending on Mac mini.
+
 | Task | Status | Notes |
 |------|--------|-------|
-| Create `~/homelab` directory structure | :white_circle: | |
-| Deploy Docker Engine + Compose | :white_circle: | |
-| Deploy Dockge (stack management) | :white_circle: | |
-| Deploy Homepage (dashboard) | :white_circle: | |
-| Deploy Caddy (reverse proxy) | :white_circle: | |
-| Deploy Tailscale (remote access) | :white_circle: | |
-| Deploy Uptime Kuma (monitoring) | :white_circle: | |
-| Create `docs/inventory.md` | :white_circle: | |
-| Create `docs/runbook.md` | :white_circle: | |
+| Create `~/homelab` directory structure | :large_blue_circle: | Repo structure and all stack files created |
+| Deploy Docker Engine + Compose | :large_blue_circle: | Docker Desktop running on Mac mini |
+| Deploy Dockge (stack management) | :large_blue_circle: | `platform/dockge/` created; stack running |
+| Deploy Homepage (dashboard) | :large_blue_circle: | `platform/homepage/` created; stack running |
+| Deploy Caddy (reverse proxy) | :large_blue_circle: | `platform/caddy/` created; stack running |
+| Deploy Tailscale (remote access) | :large_blue_circle: | `platform/tailscale/` created; requires TS_AUTHKEY |
+| Deploy Uptime Kuma (monitoring) | :large_blue_circle: | `platform/uptime-kuma/` created; stack running |
+| Create `docs/inventory.md` | :large_blue_circle: | Created in `docs/inventory.md` |
+| Create `docs/runbook.md` | :large_blue_circle: | Created in `docs/runbook.md` |
 
 ---
 
@@ -36,14 +38,16 @@
 
 **Goal:** Centralised identity with family accounts and RBAC.
 
+> Infrastructure files created via agent tasks. Deployment pending on Mac mini.
+
 | Task | Status | Notes |
 |------|--------|-------|
-| Deploy Authentik | :white_circle: | |
-| Create family user accounts | :white_circle: | |
-| Create baseline groups (homelab-admin, parents, kids) | :white_circle: | |
+| Deploy Authentik | :large_blue_circle: | `platform/authentik/` created; 4-container stack running |
+| Create family user accounts | :white_circle: | Complete via `http://login.home` after first-run setup |
+| Create baseline groups (homelab-admin, parents, kids) | :white_circle: | See `docs/onboarding.md` |
 | Apply Authentik branding | :white_circle: | |
-| Configure break-glass admin account | :white_circle: | |
-| Create `docs/access-matrix.md` | :white_circle: | |
+| Configure break-glass admin account | :white_circle: | `akadmin` account created on first run |
+| Create `docs/access-matrix.md` | :large_blue_circle: | Created in `docs/access-matrix.md` |
 
 ---
 
@@ -51,16 +55,18 @@
 
 **Goal:** First production app (Immich) deployed with full platform integration.
 
+> Infrastructure files created via agent tasks. Deployment pending on Mac mini.
+
 | Task | Status | Notes |
 |------|--------|-------|
-| Deploy Immich with pinned image tags | :white_circle: | |
-| Wire Immich SSO via Authentik | :white_circle: | |
-| Map immich-admin / immich-user groups | :white_circle: | |
-| Add Immich to Homepage dashboard | :white_circle: | |
-| Add Immich Uptime Kuma monitor | :white_circle: | |
-| Configure Immich backup policy | :white_circle: | |
+| Deploy Immich with pinned image tags | :large_blue_circle: | `apps/immich/` created; stack running on v2.5.6 |
+| Wire Immich SSO via Authentik | :white_circle: | Steps documented in `apps/immich/README.md` |
+| Map immich-admin / immich-user groups | :white_circle: | Pending Authentik group creation |
+| Add Immich to Homepage dashboard | :large_blue_circle: | Added to `platform/homepage/config/services.yaml` |
+| Add Immich Uptime Kuma monitor | :white_circle: | Configure via `http://status.home` |
+| Configure Immich backup policy | :white_circle: | Scope documented in `apps/immich/app-contract.yaml` |
 | Run Immich restore test | :white_circle: | |
-| Record in inventory and access-matrix | :white_circle: | |
+| Record in inventory and access-matrix | :white_circle: | Pending `docs/inventory.md` and `docs/access-matrix.md` update |
 
 ---
 

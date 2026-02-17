@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# validate-compose — Validate all compose.yml files in the homelab repo
+# Usage: validate-compose
+
+set -euo pipefail
+
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+BOLD='\033[1m'
+NC='\033[0m'
+
+HOMELAB_DIR="${HOMELAB_DIR:-$HOME/homelab}"
+ERRORS=0
+
+echo -e "${BOLD}Validating all compose.yml files in $HOMELAB_DIR...${NC}"
+echo ""
+
+while IFS= read -r compose_file; do
+  dir=$(dirname "$compose_file")
+  # Relative path for cleaner output
+  rel="${compose_file#$HOMELAB_DIR/}"
+  service=$(basename "$dir")
+
+  if (cd "$dir" && docker compose config > /dev/null 2>&1); then
+    echo -e "  ${GREEN}✓${NC} $service  (${rel})"
+  else
+    echo -e "  ${RED}✗${NC} $service — FAILED  (${rel})"
+    (cd "$dir" && docker compose config 2>&1 | head -5) | sed 's/^/    /'
+    ERRORS=$((ERRORS + 1))
+  fi
+done < <(find "$HOMELAB_DIR" -name "compose.yml" \
+           -not -path "*/data/*" \
+           -not -path "*/.git/*" \
+           | sort)
+
+echo ""
+if [ "$ERRORS" -eq 0 ]; then
+  echo -e "${GREEN}${BOLD}All compose files valid.${NC}"
+else
+  echo -e "${RED}${BOLD}$ERRORS compose file(s) failed validation.${NC}"
+  exit 1
+fi

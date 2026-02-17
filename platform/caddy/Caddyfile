@@ -1,18 +1,20 @@
-# Caddy Reverse Proxy Configuration
-# ===================================
-# How to add a new service:
-#   1. Add a new block below with the internal hostname (e.g., http://myapp.home)
-#   2. Set the reverse_proxy target to the Docker container name and port
-#   3. Reload Caddy: docker exec caddy caddy reload --config /etc/caddy/Caddyfile
-#   4. Ensure the target container joins the caddy-net network
+# Homelab Platform — Caddy Reverse Proxy Configuration
 #
-# All services use internal Docker DNS names (container names on caddy-net).
-# Site addresses use http:// explicitly so Caddy binds port 80 (no TLS needed for LAN).
+# Each service gets a local hostname routed to its internal Docker address.
+# Services must be on the caddy-net Docker network to be reachable.
+#
+# To add a new service:
+# 1. Add a block below with http://<service>.home
+# 2. Set reverse_proxy to the container name and port
+# 3. Reload Caddy: docker exec caddy caddy reload --config /etc/caddy/Caddyfile
+# 4. Ensure the target container joins caddy-net
 
 {
     # Disable automatic HTTPS — this is a local-only deployment
     auto_https off
 }
+
+# --- Platform Services ---
 
 http://dockge.home {
     reverse_proxy dockge:5001 {
@@ -38,8 +40,24 @@ http://login.home {
     }
 }
 
+# --- Applications ---
+
 http://immich.home {
     reverse_proxy immich-server:2283 {
         header_up X-Real-IP {remote_host}
     }
 }
+
+# --- Authentik Forward Auth (for apps that need SSO protection) ---
+# Uncomment and import in app blocks that need Authentik gating:
+#
+# (authentik) {
+#     forward_auth authentik-server:9000 {
+#         uri /outpost.goauthentik.io/auth/caddy
+#         copy_headers X-Authentik-Username X-Authentik-Groups X-Authentik-Email X-Authentik-Name X-Authentik-Uid
+#         trusted_proxies private_ranges
+#     }
+# }
+#
+# Then add to any protected site block:
+#     import authentik
