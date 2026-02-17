@@ -1,0 +1,7 @@
+- Documentation:
+    - Design:
+        - href: https://github.com/briancunningham6/homelab
+          icon: github
+    - Rollout Plan:
+        - href: https://github.com/briancunningham6/homelab/blob/main/docs/rollout-plan.md
+          icon: markdown

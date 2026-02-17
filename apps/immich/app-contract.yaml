@@ -1,0 +1,42 @@
+name: immich
+version: 1.0.0
+
+auth:
+  mode: oidc
+  provider: authentik
+  groups:
+    admin: immich-admin
+    user: immich-user
+  notes: >
+    Authentik OIDC integration configured in Immich under Administration → OAuth Settings.
+    Break-glass: local admin account created during first-run setup (before SSO is wired).
+
+network:
+  hostname: immich.home
+  internalPort: 2283
+  exposure: lan-and-tailscale
+
+data:
+  paths:
+    - ./data/upload    # Photo and video library (Phase A: internal disk)
+    - ./data/postgres  # PostgreSQL database state
+  notes: >
+    Phase B: migrate upload to /Volumes/HomelabData/immich-library (external SSD).
+    See README for migration procedure.
+
+backup:
+  includes:
+    - data/upload
+    - data/postgres
+  excludes:
+    - data/model-cache  # Reproducible — re-downloaded automatically
+  rpoClass: daily
+  restoreTest: documented
+
+agentScopes:
+  user: [read, write]
+  child: [read]
+  admin: [read, write, delete, configure]
+
+health:
+  endpoint: /api/server/ping

@@ -1,0 +1,12 @@
+title: Homelab
+favicon: https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/home-assistant.png
+theme: dark
+color: slate
+headerStyle: clean
+layout:
+  Platform:
+    style: row
+    columns: 4
+  Applications:
+    style: row
+    columns: 3

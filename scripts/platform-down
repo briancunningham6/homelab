@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# platform-down — Stop all platform services in reverse boot order
+# Usage: platform-down
+# Shutdown order (reverse of boot):
+#   Apps → Dockge → Homepage → Uptime Kuma → Authentik → Caddy → Tailscale
+
+set -euo pipefail
+
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+BOLD='\033[1m'
+
+HOMELAB_DIR="${HOMELAB_DIR:-$HOME/homelab}"
+
+info()    { echo -e "${GREEN}[platform-down]${NC} $*"; }
+warn()    { echo -e "${YELLOW}[platform-down]${NC} $*"; }
+section() { echo -e "\n${BOLD}── $* ──${NC}"; }
+
+stop_if_exists() {
+  local service="$1"
+  local found=false
+  for dir in platform apps ai; do
+    if [ -d "$HOMELAB_DIR/$dir/$service" ] && [ -f "$HOMELAB_DIR/$dir/$service/compose.yml" ]; then
+      found=true
+      section "Stopping $service"
+      docker compose -f "$HOMELAB_DIR/$dir/$service/compose.yml" down
+      break
+    fi
+  done
+  if ! $found; then
+    warn "$service not found — skipping"
+  fi
+}
+
+echo -e "${BOLD}╔════════════════════════════════╗${NC}"
+echo -e "${BOLD}║    Homelab Platform Shutdown   ║${NC}"
+echo -e "${BOLD}╚════════════════════════════════╝${NC}"
+
+# Stop app stacks first
+section "Stopping app stacks"
+APP_BASE="$HOMELAB_DIR/apps"
+if [ -d "$APP_BASE" ]; then
+  for stack_dir in "$APP_BASE"/*/; do
+    [ -f "$stack_dir/compose.yml" ] || continue
+    STACK=$(basename "$stack_dir")
+    info "Stopping app: $STACK"
+    docker compose -f "$stack_dir/compose.yml" down
+  done
+else
+  info "No apps/ directory — skipping"
+fi
+
+# Stop platform services in reverse order
+stop_if_exists "dockge"
+stop_if_exists "homepage"
+stop_if_exists "uptime-kuma"
+stop_if_exists "authentik"
+stop_if_exists "caddy"
+stop_if_exists "tailscale"
+
+section "Platform shutdown complete"
+info "All services stopped."

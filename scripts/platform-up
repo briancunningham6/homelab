@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# platform-up — Start all platform services in the correct boot order
+# Usage: platform-up
+# Boot order per docs/ops-standard.md § 4:
+#   1. Tailscale → 2. Caddy → 3. Authentik → 4. Uptime Kuma → 5. Homepage → 6. Dockge
+
+set -euo pipefail
+
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m'
+BOLD='\033[1m'
+
+HOMELAB_DIR="${HOMELAB_DIR:-$HOME/homelab}"
+
+info()    { echo -e "${GREEN}[platform-up]${NC} $*"; }
+warn()    { echo -e "${YELLOW}[platform-up]${NC} $*"; }
+section() { echo -e "\n${BOLD}── $* ──${NC}"; }
+
+wait_healthy() {
+  local service="$1"
+  local seconds="${2:-10}"
+  info "Waiting ${seconds}s for $service to stabilise..."
+  sleep "$seconds"
+}
+
+start_if_exists() {
+  local service="$1"
+  local wait_secs="${2:-5}"
+  local found=false
+  for dir in platform apps ai; do
+    if [ -d "$HOMELAB_DIR/$dir/$service" ] && [ -f "$HOMELAB_DIR/$dir/$service/compose.yml" ]; then
+      found=true
+      section "Starting $service"
+      if ! docker compose -f "$HOMELAB_DIR/$dir/$service/compose.yml" up -d; then
+        warn "$service failed to start — continuing with remaining services"
+        return 0
+      fi
+      wait_healthy "$service" "$wait_secs"
+      break
+    fi
+  done
+  if ! $found; then
+    warn "$service not found — skipping"
+  fi
+}
+
+echo -e "${BOLD}╔═══════════════════════════════╗${NC}"
+echo -e "${BOLD}║    Homelab Platform Startup   ║${NC}"
+echo -e "${BOLD}╚═══════════════════════════════╝${NC}"
+
+# Platform services in boot order
+start_if_exists "tailscale" 8
+start_if_exists "caddy" 5
+start_if_exists "authentik" 15
+start_if_exists "uptime-kuma" 5
+start_if_exists "homepage" 5
+start_if_exists "dockge" 5
+
+# Start all app stacks
+section "Starting app stacks"
+APP_BASE="$HOMELAB_DIR/apps"
+if [ -d "$APP_BASE" ]; then
+  for stack_dir in "$APP_BASE"/*/; do
+    [ -f "$stack_dir/compose.yml" ] || continue
+    STACK=$(basename "$stack_dir")
+    info "Starting app: $STACK"
+    docker compose -f "$stack_dir/compose.yml" up -d
+    sleep 3
+  done
+else
+  info "No apps/ directory found — skipping app stacks"
+fi
+
+section "Platform startup complete"
+info "All services started. Run 'scripts/dr-verify' to check health."

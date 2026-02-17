@@ -1,0 +1,19 @@
+services:
+  caddy:
+    image: caddy:2.9.1
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./data/caddy_data:/data
+      - ./data/caddy_config:/config
+    networks:
+      - caddy-net
+
+networks:
+  caddy-net:
+    name: caddy-net
+    driver: bridge

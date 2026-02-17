@@ -31,6 +31,9 @@ Task 09 (Immich)          ─► Depends on: 01 (Caddy), 08 (Authentik)
                            │
                            ▼
 Task 10 (Integration)     ─► Depends on: all above (wires everything together)
+                           │
+                           ▼
+Task 11 (OpenClaw)        ─► Depends on: 10 (full platform running + Authentik + Immich)
 ```
 
 ## Parallel Execution Plan
@@ -61,6 +64,11 @@ Task 10 (Integration)     ─► Depends on: all above (wires everything togethe
 |------|-------|--------|
 | `10-integration.md` | Agent 10 | Caddyfile assembly, Homepage config, validation |
 
+### Wave 5 (OpenClaw — depends on full platform)
+| Task | Agent | Output |
+|------|-------|--------|
+| `11-openclaw.md` | Agent 11 | `ai/openclaw/` stack, Ollama, lane config, eval templates |
+
 ## Estimated Cost
 
 | Wave | Tasks | Token Estimate | Cost (Opus) | Cost (Sonnet) |
@@ -69,9 +77,10 @@ Task 10 (Integration)     ─► Depends on: all above (wires everything togethe
 | Wave 2 | 1 agent | ~120K | ~$2.50 | ~$0.60 |
 | Wave 3 | 1 agent | ~100K | ~$2.00 | ~$0.50 |
 | Wave 4 | 1 agent | ~150K | ~$3.00 | ~$0.75 |
-| **Total** | **10 agents** | **~970K** | **~$19.50** | **~$4.85** |
+| Wave 5 | 1 agent | ~150K | ~$3.00 | ~$0.75 |
+| **Total** | **11 agents** | **~1.12M** | **~$22.50** | **~$5.60** |
 
-Add 50–100% for iteration and debugging → **realistic range: $25–40 (Opus) or $7–10 (Sonnet)**.
+Add 50–100% for iteration and debugging → **realistic range: $30–45 (Opus) or $8–12 (Sonnet)**.
 
 ## Post-Execution Checklist
 
@@ -85,3 +94,6 @@ After all tasks complete:
 - [ ] `docs/inventory.md` is populated with all services
 - [ ] `.gitignore` covers `.env`, `data/`, `backups/`
 - [ ] Rollout plan updated with task completion status
+- [ ] OpenClaw runtime deployed with Authentik SSO
+- [ ] Per-user agent lanes verified (admin/user/child)
+- [ ] Evaluation templates ready for family trial

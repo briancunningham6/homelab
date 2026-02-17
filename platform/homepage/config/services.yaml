@@ -1,0 +1,32 @@
+- Platform:
+    - Dockge:
+        href: http://dockge.home
+        description: Stack Management
+        icon: dockge
+        server: my-docker
+        container: dockge
+    - Uptime Kuma:
+        href: http://status.home
+        description: Health Monitoring
+        icon: uptime-kuma
+        server: my-docker
+        container: uptime-kuma
+    - Caddy:
+        description: Reverse Proxy
+        icon: caddy
+        server: my-docker
+        container: caddy
+    - Authentik:
+        href: http://login.home
+        description: Identity & SSO
+        icon: authentik
+        server: my-docker
+        container: authentik-server
+
+- Applications:
+    - Immich:
+        href: http://immich.home
+        description: Photos & Videos
+        icon: immich
+        server: my-docker
+        container: immich-server

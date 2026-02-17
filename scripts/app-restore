@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+# app-restore — Restore an app's data from backup
+# Usage: app-restore <app-name> [snapshot-id]
+
+set -euo pipefail
+
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m'
+
+HOMELAB_DIR="${HOMELAB_DIR:-$HOME/homelab}"
+LOCAL_BACKUP_DIR="${LOCAL_BACKUP_DIR:-$HOMELAB_DIR/backups/local}"
+SCRIPTS_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+info()  { echo -e "${GREEN}[app-restore]${NC} $*"; }
+warn()  { echo -e "${YELLOW}[app-restore]${NC} $*"; }
+error() { echo -e "${RED}[app-restore]${NC} $*" >&2; }
+
+if [ $# -lt 1 ]; then
+  echo "Usage: app-restore <app-name> [snapshot-id]"
+  exit 1
+fi
+
+APP="$1"
+SNAPSHOT_ID="${2:-latest}"
+
+resolve_path() {
+  local name="$1"
+  for dir in apps platform ai; do
+    if [ -d "$HOMELAB_DIR/$dir/$name" ]; then
+      echo "$HOMELAB_DIR/$dir/$name"
+      return 0
+    fi
+  done
+  return 1
+}
+
+APP_DIR=$(resolve_path "$APP") || {
+  error "App '$APP' not found in apps/, platform/, or ai/"
+  exit 1
+}
+
+# Stop app first
+info "Stopping $APP before restore..."
+"$SCRIPTS_DIR/app-down" "$APP"
+
+# Check Restic configuration
+RESTIC_ENV="$APP_DIR/.env"
+GLOBAL_BACKUP_CONFIG="$HOMELAB_DIR/backups/restic.env"
+RESTIC_CONFIGURED=false
+
+load_restic_env() {
+  local envfile="$1"
+  if [ -f "$envfile" ]; then
+    set -a
+    . "$envfile"
+    set +a
+    if [ -n "${RESTIC_REPOSITORY:-}" ] && [ -n "${RESTIC_PASSWORD:-}" ]; then
+      return 0
+    fi
+  fi
+  return 1
+}
+
+if load_restic_env "$RESTIC_ENV" || load_restic_env "$GLOBAL_BACKUP_CONFIG"; then
+  RESTIC_CONFIGURED=true
+fi
+
+if $RESTIC_CONFIGURED; then
+  info "Available Restic snapshots for $APP:"
+  restic snapshots --tag "$APP"
+
+  warn "About to restore snapshot '$SNAPSHOT_ID' to $APP_DIR/data/"
+  read -r -p "This will OVERWRITE existing data. Continue? [y/N] " CONFIRM
+  if [[ ! "$CONFIRM" =~ ^[Yy]$ ]]; then
+    info "Restore cancelled."
+    "$SCRIPTS_DIR/app-up" "$APP"
+    exit 0
+  fi
+
+  info "Restoring from Restic snapshot $SNAPSHOT_ID..."
+  restic restore "$SNAPSHOT_ID" --tag "$APP" --target "$APP_DIR" --include "/data"
+  info "Restore complete."
+else
+  info "Available local backups for $APP:"
+  ls -t "$LOCAL_BACKUP_DIR/${APP}-"*.tar.gz 2>/dev/null || {
+    error "No local backups found for $APP in $LOCAL_BACKUP_DIR"
+    "$SCRIPTS_DIR/app-up" "$APP"
+    exit 1
+  }
+
+  if [ "$SNAPSHOT_ID" = "latest" ]; then
+    ARCHIVE=$(ls -t "$LOCAL_BACKUP_DIR/${APP}-"*.tar.gz | head -1)
+  else
+    ARCHIVE="$LOCAL_BACKUP_DIR/${SNAPSHOT_ID}"
+  fi
+
+  warn "About to restore $ARCHIVE to $APP_DIR/data/"
+  read -r -p "This will OVERWRITE existing data. Continue? [y/N] " CONFIRM
+  if [[ ! "$CONFIRM" =~ ^[Yy]$ ]]; then
+    info "Restore cancelled."
+    "$SCRIPTS_DIR/app-up" "$APP"
+    exit 0
+  fi
+
+  info "Restoring from $ARCHIVE..."
+  tar -xzf "$ARCHIVE" -C "$APP_DIR"
+  info "Restore complete."
+fi
+
+# Restart app
+info "Restarting $APP..."
+"$SCRIPTS_DIR/app-up" "$APP"
+info "$APP restored and restarted."

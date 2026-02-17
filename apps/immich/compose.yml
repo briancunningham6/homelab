@@ -1,0 +1,75 @@
+services:
+  immich-server:
+    image: ghcr.io/immich-app/immich-server:${IMMICH_VERSION:-v2.5.6}
+    container_name: immich-server
+    restart: unless-stopped
+    volumes:
+      - ${UPLOAD_LOCATION:-./data/upload}:/usr/src/app/upload
+    environment:
+      DB_HOSTNAME: immich-db
+      DB_PORT: 5432
+      DB_DATABASE_NAME: ${DB_DATABASE_NAME:-immich}
+      DB_USERNAME: ${DB_USERNAME:-immich}
+      DB_PASSWORD: ${DB_PASSWORD}
+      REDIS_HOSTNAME: immich-redis
+      UPLOAD_LOCATION: ${UPLOAD_LOCATION:-./data/upload}
+      IMMICH_VERSION: ${IMMICH_VERSION:-v2.5.6}
+    depends_on:
+      immich-db:
+        condition: service_healthy
+      immich-redis:
+        condition: service_healthy
+    networks:
+      - immich-internal
+      - caddy-net
+
+  immich-machine-learning:
+    image: ghcr.io/immich-app/immich-machine-learning:${IMMICH_VERSION:-v2.5.6}
+    container_name: immich-ml
+    restart: unless-stopped
+    volumes:
+      - ./data/model-cache:/cache
+    networks:
+      - immich-internal
+
+  immich-db:
+    image: docker.io/tensorchord/pgvecto-rs:pg16-v0.2.0
+    container_name: immich-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_DATABASE_NAME:-immich}
+      POSTGRES_USER: ${DB_USERNAME:-immich}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_INITDB_ARGS: --data-checksums
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: >-
+        pg_isready --dbname="${DB_DATABASE_NAME:-immich}" --username="${DB_USERNAME:-immich}"
+        || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - immich-internal
+
+  immich-redis:
+    image: docker.io/library/redis:7-alpine
+    container_name: immich-redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - immich-internal
+
+networks:
+  immich-internal:
+    name: immich-internal
+    driver: bridge
+    internal: true
+  caddy-net:
+    external: true

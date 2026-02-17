@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+# app-update — Update a homelab app to a new image version
+# Usage: app-update <app-name> <new-version>
+# Implements the 7-step update workflow from docs/ops-standard.md § 5
+
+set -euo pipefail
+
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m'
+
+HOMELAB_DIR="${HOMELAB_DIR:-$HOME/homelab}"
+SCRIPTS_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+info()  { echo -e "${GREEN}[app-update]${NC} $*"; }
+warn()  { echo -e "${YELLOW}[app-update]${NC} $*"; }
+error() { echo -e "${RED}[app-update]${NC} $*" >&2; }
+
+if [ $# -lt 2 ]; then
+  echo "Usage: app-update <app-name> <new-version>"
+  echo "Example: app-update immich v1.131.0"
+  exit 1
+fi
+
+APP="$1"
+NEW_VERSION="$2"
+
+resolve_path() {
+  local name="$1"
+  for dir in apps platform ai; do
+    if [ -d "$HOMELAB_DIR/$dir/$name" ]; then
+      echo "$HOMELAB_DIR/$dir/$name"
+      return 0
+    fi
+  done
+  return 1
+}
+
+APP_DIR=$(resolve_path "$APP") || {
+  error "App '$APP' not found in apps/, platform/, or ai/"
+  exit 1
+}
+
+COMPOSE_FILE="$APP_DIR/compose.yml"
+if [ ! -f "$COMPOSE_FILE" ]; then
+  error "No compose.yml found in $APP_DIR"
+  exit 1
+fi
+
+# Step 1: Show current image tag
+info "Step 1: Current image configuration:"
+grep "image:" "$COMPOSE_FILE" | sed 's/^/  /'
+
+# Step 2: Prompt for confirmation
+CURRENT_VERSION=$(grep "image:" "$COMPOSE_FILE" | head -1 | sed 's/.*://')
+warn "Step 2: About to update $APP from $CURRENT_VERSION to $NEW_VERSION"
+read -r -p "Continue? [y/N] " CONFIRM
+if [[ ! "$CONFIRM" =~ ^[Yy]$ ]]; then
+  info "Update cancelled."
+  exit 0
+fi
+
+# Step 3: Pre-update backup
+info "Step 3: Running pre-update backup..."
+"$SCRIPTS_DIR/app-backup" "$APP" || warn "Backup failed or skipped — proceeding with update"
+
+# Step 4: Update image tag in compose.yml
+info "Step 4: Updating image tag in compose.yml..."
+if [[ "$(uname)" == "Darwin" ]]; then
+  sed -i '' "s|:${CURRENT_VERSION}|:${NEW_VERSION}|g" "$COMPOSE_FILE"
+else
+  sed -i "s|:${CURRENT_VERSION}|:${NEW_VERSION}|g" "$COMPOSE_FILE"
+fi
+info "compose.yml updated:"
+grep "image:" "$COMPOSE_FILE" | sed 's/^/  /'
+
+# Step 5: Pull and recreate
+info "Step 5: Pulling new image and recreating containers..."
+docker compose -f "$COMPOSE_FILE" pull
+docker compose -f "$COMPOSE_FILE" up -d
+
+# Step 6: Health check
+info "Step 6: Checking container health..."
+sleep 5
+HEALTH=$(docker compose -f "$COMPOSE_FILE" ps)
+echo "$HEALTH"
+
+if echo "$HEALTH" | grep -qE "(Exit|unhealthy|dead)"; then
+  error "Health check failed — containers may be unhealthy"
+  read -r -p "Rollback to $CURRENT_VERSION? [y/N] " ROLLBACK
+  if [[ "$ROLLBACK" =~ ^[Yy]$ ]]; then
+    warn "Rolling back to $CURRENT_VERSION..."
+    if [[ "$(uname)" == "Darwin" ]]; then
+      sed -i '' "s|:${NEW_VERSION}|:${CURRENT_VERSION}|g" "$COMPOSE_FILE"
+    else
+      sed -i "s|:${NEW_VERSION}|:${CURRENT_VERSION}|g" "$COMPOSE_FILE"
+    fi
+    docker compose -f "$COMPOSE_FILE" pull
+    docker compose -f "$COMPOSE_FILE" up -d
+    info "Rollback complete."
+  fi
+  exit 1
+fi
+
+# Step 7: Confirm and remind
+info "Step 7: Update complete!"
+info "  App: $APP"
+info "  Version: $CURRENT_VERSION → $NEW_VERSION"
+warn "Remember to log this update in docs/runbook.md"

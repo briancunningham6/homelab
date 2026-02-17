@@ -1,0 +1,45 @@
+# Caddy Reverse Proxy Configuration
+# ===================================
+# How to add a new service:
+#   1. Add a new block below with the internal hostname (e.g., http://myapp.home)
+#   2. Set the reverse_proxy target to the Docker container name and port
+#   3. Reload Caddy: docker exec caddy caddy reload --config /etc/caddy/Caddyfile
+#   4. Ensure the target container joins the caddy-net network
+#
+# All services use internal Docker DNS names (container names on caddy-net).
+# Site addresses use http:// explicitly so Caddy binds port 80 (no TLS needed for LAN).
+
+{
+    # Disable automatic HTTPS — this is a local-only deployment
+    auto_https off
+}
+
+http://dockge.home {
+    reverse_proxy dockge:5001 {
+        header_up X-Real-IP {remote_host}
+    }
+}
+
+http://home.home {
+    reverse_proxy homepage:3000 {
+        header_up X-Real-IP {remote_host}
+    }
+}
+
+http://status.home {
+    reverse_proxy uptime-kuma:3001 {
+        header_up X-Real-IP {remote_host}
+    }
+}
+
+http://login.home {
+    reverse_proxy authentik-server:9000 {
+        header_up X-Real-IP {remote_host}
+    }
+}
+
+http://immich.home {
+    reverse_proxy immich-server:2283 {
+        header_up X-Real-IP {remote_host}
+    }
+}

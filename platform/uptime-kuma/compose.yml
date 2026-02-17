@@ -1,0 +1,13 @@
+services:
+  uptime-kuma:
+    image: louislam/uptime-kuma:1.23.16
+    container_name: uptime-kuma
+    restart: unless-stopped
+    volumes:
+      - ./data:/app/data
+    networks:
+      - caddy-net
+
+networks:
+  caddy-net:
+    external: true

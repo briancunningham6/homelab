@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# app-up — Start a homelab app or platform service
+# Usage: app-up <app-name>
+
+set -euo pipefail
+
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m'
+
+HOMELAB_DIR="${HOMELAB_DIR:-$HOME/homelab}"
+
+info()  { echo -e "${GREEN}[app-up]${NC} $*"; }
+warn()  { echo -e "${YELLOW}[app-up]${NC} $*"; }
+error() { echo -e "${RED}[app-up]${NC} $*" >&2; }
+
+if [ $# -lt 1 ]; then
+  echo "Usage: app-up <app-name>"
+  exit 1
+fi
+
+APP="$1"
+
+# Resolve app directory: check apps/, platform/, ai/
+resolve_path() {
+  local name="$1"
+  for dir in apps platform ai; do
+    if [ -d "$HOMELAB_DIR/$dir/$name" ]; then
+      echo "$HOMELAB_DIR/$dir/$name"
+      return 0
+    fi
+  done
+  return 1
+}
+
+APP_DIR=$(resolve_path "$APP") || {
+  error "App '$APP' not found in apps/, platform/, or ai/"
+  exit 1
+}
+
+if [ ! -f "$APP_DIR/compose.yml" ]; then
+  error "No compose.yml found in $APP_DIR"
+  exit 1
+fi
+
+info "Starting $APP from $APP_DIR..."
+docker compose -f "$APP_DIR/compose.yml" up -d
+
+info "Waiting for containers to stabilise..."
+sleep 3
+
+info "Container status:"
+docker compose -f "$APP_DIR/compose.yml" ps
+info "$APP started successfully."

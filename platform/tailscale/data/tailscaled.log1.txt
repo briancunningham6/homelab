@@ -1,0 +1,3 @@
+{"logtail":{"client_time":"2026-02-17T14:33:24.628358555Z","proc_id":3460392535,"proc_seq":96},"v":1,"text":"control: authRoutine: backoff: 8 msec\n"}
+{"logtail":{"client_time":"2026-02-17T14:33:24.637002263Z","proc_id":3460392535,"proc_seq":97},"text":"Received error: invalid key: API key does not exist\n"}
+{"logtail":{"client_time":"2026-02-17T14:33:24.639846888Z","proc_id":3460392535,"proc_seq":98},"text":"tailscaled got signal terminated; shutting down\n"}

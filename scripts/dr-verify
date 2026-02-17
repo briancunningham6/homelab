@@ -1,0 +1,163 @@
+#!/usr/bin/env bash
+# dr-verify — Platform-wide health verification and DR readiness check
+# Usage: dr-verify
+
+set -euo pipefail
+
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m'
+BOLD='\033[1m'
+
+HOMELAB_DIR="${HOMELAB_DIR:-$HOME/homelab}"
+LOCAL_BACKUP_DIR="${LOCAL_BACKUP_DIR:-$HOMELAB_DIR/backups/local}"
+
+DISK_WARN_PCT=75
+DISK_CRIT_PCT=85
+
+ISSUES=0
+WARNINGS=0
+
+info()    { echo -e "${GREEN}✓${NC} $*"; }
+warn()    { echo -e "${YELLOW}⚠${NC} $*"; WARNINGS=$((WARNINGS + 1)); }
+err()     { echo -e "${RED}✗${NC} $*"; ISSUES=$((ISSUES + 1)); }
+section() { echo -e "\n${BOLD}── $* ──${NC}"; }
+
+echo -e "${BOLD}╔════════════════════════════════╗${NC}"
+echo -e "${BOLD}║     Homelab DR Verification    ║${NC}"
+echo -e "${BOLD}╚════════════════════════════════╝${NC}"
+echo "Date: $(date)"
+echo "Host: $(hostname)"
+
+# ── 1. Stack Health ──
+section "1. Stack Health"
+for base_dir in platform apps ai; do
+  dir="$HOMELAB_DIR/$base_dir"
+  [ -d "$dir" ] || continue
+  for stack_dir in "$dir"/*/; do
+    [ -f "$stack_dir/compose.yml" ] || continue
+    STACK=$(basename "$stack_dir")
+    RUNNING=$(docker compose -f "$stack_dir/compose.yml" ps --status running --quiet 2>/dev/null | wc -l | tr -d ' ')
+    TOTAL=$(docker compose -f "$stack_dir/compose.yml" config --services 2>/dev/null | wc -l | tr -d ' ')
+    if [ "$RUNNING" -ge "$TOTAL" ] && [ "$TOTAL" -gt 0 ]; then
+      info "$base_dir/$STACK: $RUNNING/$TOTAL containers running"
+    elif [ "$RUNNING" -gt 0 ]; then
+      warn "$base_dir/$STACK: $RUNNING/$TOTAL containers running"
+    else
+      err "$base_dir/$STACK: no containers running (expected $TOTAL)"
+    fi
+  done
+done
+
+# ── 2. Service Health Endpoints ──
+section "2. Service Health Endpoints"
+
+# Check an HTTP endpoint reachable from the host
+check_host_endpoint() {
+  local name="$1"
+  local url="$2"
+  local host_header="${3:-}"
+  local status
+  if [ -n "$host_header" ]; then
+    status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 -H "Host: $host_header" "$url" 2>/dev/null || echo "000")
+  else
+    status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "$url" 2>/dev/null || echo "000")
+  fi
+  if [ "$status" -ge 200 ] && [ "$status" -lt 400 ]; then
+    info "$name: HTTP $status"
+  else
+    err "$name: HTTP $status ($url)"
+  fi
+}
+
+# Check an HTTP endpoint reachable only inside Docker (container doesn't publish host ports)
+check_container_endpoint() {
+  local name="$1"
+  local container="$2"
+  local url="$3"
+  if ! docker inspect "$container" &>/dev/null; then
+    warn "$name: container '$container' not found"
+    return
+  fi
+  local status
+  status=$(docker exec "$container" wget -qO- --server-response --timeout=5 "$url" 2>&1 | awk '/HTTP\//{print $2}' | tail -1)
+  if [ -z "$status" ]; then
+    # wget not available, try sh + /dev/tcp
+    status=$(docker exec "$container" sh -c "wget -qO /dev/null --server-response '$url' 2>&1 | awk '/HTTP\//{print \$2}' | tail -1" 2>/dev/null || echo "000")
+  fi
+  if [ -z "$status" ]; then
+    err "$name: could not reach $url inside container $container"
+  elif [ "$status" -ge 200 ] && [ "$status" -lt 400 ]; then
+    info "$name: HTTP $status (via $container)"
+  else
+    err "$name: HTTP $status ($url via $container)"
+  fi
+}
+
+# Caddy is the only service that publishes host ports — use Host header for a valid route
+check_host_endpoint "Caddy" "http://localhost:80" "home.home"
+# Homepage and Uptime Kuma are internal-only; check via a sibling container on caddy-net
+check_container_endpoint "Homepage" "caddy" "http://homepage:3000"
+check_container_endpoint "Uptime Kuma" "caddy" "http://uptime-kuma:3001"
+# Authentik health endpoint (internal)
+check_container_endpoint "Authentik" "caddy" "http://authentik-server:9000/-/health/live/"
+
+# ── 3. Disk Usage ──
+section "3. Disk Usage"
+while IFS= read -r line; do
+  PCT=$(echo "$line" | awk '{print $5}' | tr -d '%')
+  MOUNT=$(echo "$line" | awk '{print $6}')
+  if [ "$PCT" -ge "$DISK_CRIT_PCT" ]; then
+    err "Disk $MOUNT: ${PCT}% used (critical threshold: ${DISK_CRIT_PCT}%)"
+  elif [ "$PCT" -ge "$DISK_WARN_PCT" ]; then
+    warn "Disk $MOUNT: ${PCT}% used (warning threshold: ${DISK_WARN_PCT}%)"
+  else
+    info "Disk $MOUNT: ${PCT}% used"
+  fi
+done < <(df -h | awk 'NR>1 && $6 ~ /^\// {print}')
+
+# ── 4. Backup Freshness ──
+section "4. Backup Freshness"
+MAX_AGE_HOURS=26  # Slightly over 24h to account for timing
+
+if [ -d "$LOCAL_BACKUP_DIR" ]; then
+  # macOS-compatible: find files newer than N hours ago
+  if LATEST=$(find "$LOCAL_BACKUP_DIR" -name "*.tar.gz" -mtime -1 2>/dev/null | head -1) && [ -n "$LATEST" ]; then
+    info "Recent backup found: $(basename "$LATEST")"
+  else
+    warn "No backup found in the last ${MAX_AGE_HOURS}h in $LOCAL_BACKUP_DIR"
+  fi
+else
+  warn "Local backup directory not found: $LOCAL_BACKUP_DIR"
+fi
+
+# Check Restic if configured
+GLOBAL_BACKUP_CONFIG="$HOMELAB_DIR/backups/restic.env"
+if [ -f "$GLOBAL_BACKUP_CONFIG" ]; then
+  set -a
+  # shellcheck disable=SC1090
+  . "$GLOBAL_BACKUP_CONFIG"
+  set +a
+  if [ -n "${RESTIC_REPOSITORY:-}" ] && [ -n "${RESTIC_PASSWORD:-}" ]; then
+    if restic snapshots --latest 1 --json 2>/dev/null | grep -q '"time"'; then
+      info "Restic: recent snapshot found"
+    else
+      warn "No Restic snapshots found or Restic check failed"
+    fi
+  fi
+fi
+
+# ── Summary ──
+section "Summary"
+echo ""
+if [ "$ISSUES" -eq 0 ] && [ "$WARNINGS" -eq 0 ]; then
+  echo -e "${GREEN}${BOLD}ALL CHECKS PASSED${NC}"
+elif [ "$ISSUES" -eq 0 ]; then
+  echo -e "${YELLOW}${BOLD}PASSED WITH WARNINGS: $WARNINGS warning(s)${NC}"
+else
+  echo -e "${RED}${BOLD}FAILED: $ISSUES error(s), $WARNINGS warning(s)${NC}"
+fi
+echo ""
+
+[ "$ISSUES" -eq 0 ]
