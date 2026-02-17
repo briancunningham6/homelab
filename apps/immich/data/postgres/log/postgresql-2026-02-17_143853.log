@@ -1,0 +1,12 @@
+2026-02-17 14:38:53.994 UTC [56] LOG:  starting PostgreSQL 16.8 (Debian 16.8-1.pgdg120+1) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 12.2.0-14) 12.2.0, 64-bit
+2026-02-17 14:38:54.007 UTC [56] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+2026-02-17 14:38:54.038 UTC [60] LOG:  database system was shut down at 2026-02-17 14:38:52 UTC
+2026-02-17 14:38:54.074 UTC [56] LOG:  database system is ready to accept connections
+2026-02-17 14:38:56.633 UTC [79] FATAL:  database "immich" does not exist
+2026-02-17 14:38:57.658 UTC [56] LOG:  received fast shutdown request
+2026-02-17 14:38:57.662 UTC [56] LOG:  aborting any active transactions
+2026-02-17 14:38:57.676 UTC [56] LOG:  background worker "logical replication launcher" (PID 66) exited with exit code 1
+2026-02-17 14:38:57.681 UTC [58] LOG:  shutting down
+2026-02-17 14:38:57.683 UTC [58] LOG:  checkpoint starting: shutdown immediate
+2026-02-17 14:38:59.406 UTC [58] LOG:  checkpoint complete: wrote 922 buffers (5.6%); 0 WAL file(s) added, 0 removed, 0 recycled; write=1.626 s, sync=0.066 s, total=1.726 s; sync files=301, longest=0.006 s, average=0.001 s; distance=4255 kB, estimate=4255 kB; lsn=0/1B54B38, redo lsn=0/1B54B38
+2026-02-17 14:38:59.473 UTC [56] LOG:  database system is shut down

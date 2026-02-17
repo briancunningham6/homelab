@@ -87,12 +87,12 @@ Copy this template and fill in what you know. Not every field is required at the
 | Field | Detail |
 |-------|--------|
 | Media streaming service | hosts videos and music|
-| **Purpose** | |
+| **Purpose** | Watching video and streaming music|
 | **Upstream** | |
 | **Docker ready** | |
 | **Auth support** | |
-| **Storage needs** | |
-| **Priority** | |
+| **Storage needs** | Large |
+| **Priority** | Medium |
 | **Status** | Idea |
 
 **Notes:** 

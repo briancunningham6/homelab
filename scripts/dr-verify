@@ -102,6 +102,8 @@ check_container_endpoint "Homepage" "caddy" "http://homepage:3000"
 check_container_endpoint "Uptime Kuma" "caddy" "http://uptime-kuma:3001"
 # Authentik health endpoint (internal)
 check_container_endpoint "Authentik" "caddy" "http://authentik-server:9000/-/health/live/"
+# Immich health endpoint (internal)
+check_container_endpoint "Immich" "caddy" "http://immich-server:2283/api/server/ping"
 
 # ── 3. Disk Usage ──
 section "3. Disk Usage"
