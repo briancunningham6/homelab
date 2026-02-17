@@ -51,6 +51,8 @@ Goal: enable developers (including AI coding-agent workflows) to build apps that
 3. No shared or hardcoded credentials.
 4. Document group-to-role mapping in `docs/access-matrix.md`.
 
+> For step-by-step wiring instructions, pitfalls, and the scripted setup pattern see [`docs/authentik-oidc-integration.md`](authentik-oidc-integration.md).
+
 ---
 
 ## 4. Networking & Exposure

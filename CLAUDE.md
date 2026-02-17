@@ -33,6 +33,7 @@ This is a homelab platform specification and implementation repo. It defines a s
 |----------|-------------------|
 | `DESIGN.md` | Architecture, principles, component inventory, filesystem layout, networking, storage, identity |
 | `docs/app-spec.md` | How every app must be packaged — folder layout, auth, networking, health, backup contract, `app-contract.yaml` |
+| `docs/authentik-oidc-integration.md` | Step-by-step OIDC wiring with Authentik — pitfalls, scripting pattern, per-app checklist |
 | `docs/ops-standard.md` | Backup 3-2-1 model, DR, security baseline, boot sequence, update workflow, testing |
 | `docs/security.md` | Threat model, network security, secrets management, container hardening, accepted risks |
 | `docs/control-panel.md` | Admin UI design — modules, integrations, phasing |
