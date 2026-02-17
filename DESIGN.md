@@ -150,6 +150,7 @@ graph TB
     ├── ops-standard.md          # backup, DR, security, restart standards
     ├── rollout-plan.md          # phased implementation plan
     ├── agent-model.md           # OpenClaw multi-agent access model
+    ├── onboarding.md             # admin bootstrap and user management
     ├── inventory.md
     ├── access-matrix.md
     ├── nodes.md
@@ -296,6 +297,7 @@ The architecture supports scaling beyond one Mac mini by adding specialised node
 | [docs/ops-standard.md](docs/ops-standard.md) | Operational standards — backup, DR, security, restart/recovery |
 | [docs/rollout-plan.md](docs/rollout-plan.md) | Phased implementation plan and status tracking |
 | [docs/agent-model.md](docs/agent-model.md) | OpenClaw multi-agent access model |
+| [docs/onboarding.md](docs/onboarding.md) | Admin bootstrap and user management |
 | [docs/notes/mac-mini.md](docs/notes/mac-mini.md) | Hardware-specific notes for the Mac mini |
 | [docs/adrs/](docs/adrs/) | Architecture Decision Records |
 | [docs/inventory.md](docs/inventory.md) | Service inventory (ports, domains, owners, backup targets) |
