@@ -14,6 +14,12 @@ services:
       REDIS_HOSTNAME: immich-redis
       UPLOAD_LOCATION: ${UPLOAD_LOCATION:-./data/upload}
       IMMICH_VERSION: ${IMMICH_VERSION:-v2.5.6}
+    extra_hosts:
+      # Resolve .home names inside the container via the Docker host (port 80 → Caddy)
+      # Required so Immich fetches the Authentik OIDC discovery doc via login.home,
+      # ensuring Authentik returns browser-facing URLs (not internal Docker hostnames).
+      - "login.home:host-gateway"
+      - "immich.home:host-gateway"
     depends_on:
       immich-db:
         condition: service_healthy
