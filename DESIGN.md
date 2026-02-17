@@ -1,6 +1,10 @@
 # Homelab Standard v1.1 (Mac mini)
 
-I want to develop a homelab that hosts and runs various applications for myself and my family. The focus is on running the applications from hardware in my home. I want a robust but managable system that replaces multiple cloud based solutions that I use today. Initially I want containerised instances of existing software to run on this. I also want to define a specification for applications that can be custom built to run on this platform so that vibecoded applications can run on it. A standardised way of managing users and RBAC is implemented to handle user access. OpenClaw agents are provided to the users to interact with their applications while keeping access to their data secure. Since this will be all managed at home we need disaster recoverey and simplicity at the fore. 
+I want to develop a homelab that hosts and runs various applications for myself and my family. The focus is on running the applications from hardware in my home. I want a robust but managable system that replaces multiple cloud based solutions that I use today. 
+
+Our focus is to develop a proof of concept that tests some assumptions and helps us understand the challenges of implementing such a solution. If it proves viable we will open it up for other to contributes. As such we aim to get the individual components working but we aim to make a simplified solutioin in the future. 
+
+Initially I want containerised instances of existing software to run on this. I also want to define a specification for applications that can be custom built to run on this platform so that vibecoded applications can run on it. A standardised way of managing users and RBAC is implemented to handle user access. OpenClaw agents are provided to the users to interact with their applications while keeping access to their data secure. Since this will be all managed at home we need disaster recoverey and simplicity at the fore. 
  
 Owner: Brian  
 Host (primary): Mac mini (home services node)  
@@ -472,7 +476,108 @@ This standard is considered active when:
 
 ---
 
-## 18) Notes for this specific Mac mini
+## 18) Developer Application Specification (Platform Conformance v1)
+
+Goal: enable developers (including coding-agent workflows) to build apps that integrate cleanly with identity, access, operations, backup, and multi-agent controls.
+
+## Packaging & runtime (required)
+1. App must run in Docker.
+2. Required files: `Dockerfile` (or pinned upstream image), `compose.yml`, `.env.example`, `README.md`.
+3. Container runs as non-root where feasible.
+4. Restart policy must be `unless-stopped`.
+
+## Standard app folder layout (required)
+```text
+~/homelab/apps/<app-name>/
+  compose.yml
+  .env
+  .env.example
+  data/
+  backups/
+  README.md
+  app-contract.yaml
+```
+- App name is lowercase kebab-case.
+- Persistent state must live under `data/` (or approved external mount path).
+
+## Identity & access integration (required)
+1. Preferred auth mode: OIDC with Authentik.
+2. Fallback modes: SAML/LDAP, then proxy-auth pattern.
+3. Role groups required at minimum: `<app>-admin`, `<app>-user` (optional: `<app>-readonly`, `<app>-kids`).
+4. No shared hardcoded credentials.
+
+## Networking & exposure (required)
+1. Private by default (LAN/Tailscale).
+2. No direct public exposure without explicit approval.
+3. Stable hostname via Caddy routing (e.g., `<app>.home`).
+4. All ports/protocols documented in `docs/inventory.md`.
+
+## Health, observability, and operations (required)
+1. Health endpoint required (`/health` or equivalent).
+2. Logs to stdout/stderr.
+3. README must include start/stop/update/rollback/backup/restore commands.
+4. Uptime Kuma monitor must be defined before production use.
+
+## Backup & recovery contract (required)
+1. App must declare critical data scope (DB/config/content).
+2. Backup procedure and restore procedure must be documented.
+3. App must be restorable on new hardware from backups + manifests + secrets.
+4. Expected RPO/RTO class must be specified.
+
+## Security baseline (required)
+1. Secrets via env/secret files only (never hardcoded in source).
+2. Least-privilege defaults for app/service roles.
+3. Pinned dependency/image versions and update path documented.
+4. Input validation and sensible auth/session defaults.
+
+## Multi-agent compatibility (required)
+App must define allowed actions per lane:
+- User lane
+- Child lane
+- Admin lane
+
+At minimum classify permissions by: `read`, `write`, `share/export`, `delete`, `configure`.
+
+## App contract manifest (required)
+Each app includes `app-contract.yaml`, example:
+```yaml
+name: example-app
+version: 1.0.0
+auth:
+  mode: oidc
+  provider: authentik
+  groups:
+    admin: example-app-admin
+    user: example-app-user
+network:
+  hostname: example-app.home
+  internalPort: 8080
+data:
+  paths:
+    - ./data
+backup:
+  includes:
+    - data
+  restoreTest: documented
+agentScopes:
+  user: [read, write]
+  child: [read]
+  admin: [read, write, delete, configure]
+health:
+  endpoint: /health
+```
+
+## Release gates (must all pass before go-live)
+1. Build + run via Compose passes.
+2. Authentik integration works and group mapping verified.
+3. Health checks green in Uptime Kuma.
+4. Backup and restore test completed.
+5. Dashboard/inventory/access-matrix updated.
+6. Security checklist reviewed.
+
+---
+
+## 19) Notes for this specific Mac mini
 
 - Keep background resource use moderate due to shared Minecraft usage.
 - Schedule heavy jobs (indexing/backups) outside peak gaming times.
@@ -480,6 +585,5 @@ This standard is considered active when:
 
 ---
 
-Version: **v1.1-draft**  
-Date: 2026-02-16  
-Owner: Brian + OpenClaw
+Version: **v1.2-draft**  
+Date: 2026-02-17  
