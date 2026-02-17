@@ -1,589 +1,314 @@
-# Homelab Standard v1.1 (Mac mini)
+# Homelab Platform Design
 
-I want to develop a homelab that hosts and runs various applications for myself and my family. The focus is on running the applications from hardware in my home. I want a robust but managable system that replaces multiple cloud based solutions that I use today. 
+> Version: **1.2-draft** | Date: 2026-02-17 | Owner: Brian
 
-Our focus is to develop a proof of concept that tests some assumptions and helps us understand the challenges of implementing such a solution. If it proves viable we will open it up for other to contributes. As such we aim to get the individual components working but we aim to make a simplified solutioin in the future. 
+## Vision
 
-Initially I want containerised instances of existing software to run on this. I also want to define a specification for applications that can be custom built to run on this platform so that vibecoded applications can run on it. A standardised way of managing users and RBAC is implemented to handle user access. OpenClaw agents are provided to the users to interact with their applications while keeping access to their data secure. Since this will be all managed at home we need disaster recoverey and simplicity at the fore. 
- 
-Owner: Brian  
-Host (primary): Mac mini (home services node)  
-DR host (offsite): Relative’s house (Raspberry Pi-class device + external HDD)  
-Primary goals: standardized installs, clean management, family access control, secure remote access, and tested disaster recovery.
+A self-hosted homelab platform that replaces cloud-based services with containerised applications running on hardware at home. The platform serves a family with robust identity management, secure remote access, and tested disaster recovery — while remaining simple enough for one person to operate.
+
+The initial focus is a proof of concept that validates core assumptions. If viable, the project will be opened to contributors and simplified for broader adoption.
+
+## What is OpenClaw?
+
+OpenClaw is the planned AI agent layer for this platform. Each family member gets a personal agent scoped to their permissions and data. Agents interact with homelab applications on behalf of users while enforcing access controls. An admin-level agent handles platform operations (deploys, backups, updates). OpenClaw is currently **conceptual** — the management contract and multi-agent access model are defined in [docs/agent-model.md](docs/agent-model.md) but no implementation exists yet.
+
+## Project Metadata
+
+| Field | Value |
+|-------|-------|
+| Owner | Brian |
+| Primary host | Mac mini (home services node) |
+| DR host | Relative's house (Raspberry Pi + external HDD) |
+| Primary goals | Standardised installs, clean management, family access control, secure remote access, tested disaster recovery |
 
 ---
 
-## 1) Principles
+## 1. Principles
 
-1. **One install method for self-hosted services:** Docker Compose.
-2. **One app = one folder** (`compose.yml`, `.env`, `data/`, `README.md`, `backups/`).
-3. **No direct internet exposure by default.** Use Tailscale for remote access.
-4. **Identity-first access model:** centralized users/groups via Authentik where app support allows.
+1. **One install method:** Docker Compose for all self-hosted services.
+2. **One app = one folder** — `compose.yml`, `.env`, `data/`, `README.md`, `backups/`.
+3. **No direct internet exposure.** Tailscale for all remote access by default.
+4. **Identity-first access.** Centralised users and groups via Authentik.
 5. **Backups are mandatory; restore tests are mandatory.**
-6. **Changes are reversible** (pinned image tags + rollback path).
-7. **Resource-aware defaults** (Mac mini is fast but disk-limited and shared with Minecraft use).
+6. **Changes are reversible** — pinned image tags, documented rollback paths.
+7. **Resource-aware defaults** — the Mac mini is capable but disk-limited and shared with other uses.
 
 ---
 
-## 2) Platform Architecture (what we run)
+## 2. Architecture Overview
 
-## Core platform
-- Docker Engine + Docker Compose
-- Dockge (stack management)
-- Homepage (dashboard)
-- Caddy (reverse proxy)
-- Tailscale (secure private remote access)
-- Uptime Kuma (monitoring)
+```mermaid
+graph TB
+    subgraph Internet
+        TS[Tailscale Network]
+    end
 
-## Identity & access
-- Authentik (central users, groups, SSO)
+    subgraph "Control Node · Mac mini"
+        Caddy[Caddy · Reverse Proxy]
+        Authentik[Authentik · Identity/SSO]
+        Homepage[Homepage · Dashboard]
+        Kuma[Uptime Kuma · Monitoring]
+        Dockge[Dockge · Stack Management]
+    end
 
-## Data protection
-- Restic (encrypted backups)
-- Offsite target A: Raspberry Pi + external HDD (via Tailscale)
-- Offsite target B: Backblaze B2 (optional secondary/fallback)
+    subgraph "Application Layer"
+        Immich[Immich · Photos]
+        Apps[Custom Apps]
+    end
 
-## AI tier (future-ready)
-- Ollama (or vLLM, hardware-dependent)
-- Open WebUI (family AI frontend)
-- Model storage on external SSD/NVMe
+    subgraph "AI Layer · future"
+        Ollama[Ollama · LLM Inference]
+        WebUI[Open WebUI · Frontend]
+    end
+
+    subgraph "Data Protection"
+        Restic[Restic · Encrypted Backups]
+        PiDR[Offsite Pi + HDD]
+        B2[Backblaze B2 · optional]
+    end
+
+    subgraph "Agent Layer · future"
+        OC[OpenClaw Agents]
+    end
+
+    TS --> Caddy
+    Caddy --> Authentik
+    Caddy --> Homepage
+    Caddy --> Kuma
+    Caddy --> Immich
+    Caddy --> Apps
+    Caddy --> WebUI
+    Authentik --> Immich
+    Authentik --> Apps
+    Authentik --> WebUI
+    Authentik --> OC
+    Immich --> Restic
+    Apps --> Restic
+    Restic --> PiDR
+    Restic --> B2
+    Ollama --> WebUI
+```
+
+### Component inventory
+
+| Layer | Component | Purpose | Status |
+|-------|-----------|---------|--------|
+| **Core platform** | Docker Engine + Compose | Container runtime | Ready |
+| | Dockge | Stack management UI | Phase 1 |
+| | Homepage | Dashboard | Phase 1 |
+| | Caddy | Reverse proxy / local DNS | Phase 1 |
+| | Tailscale | Secure remote access | Phase 1 |
+| | Uptime Kuma | Health monitoring | Phase 1 |
+| **Identity** | Authentik | SSO, users, groups, RBAC | Phase 2 |
+| **Data protection** | Restic | Encrypted backups | Phase 5 |
+| | Raspberry Pi + HDD | Offsite backup target | Phase 5 |
+| | Backblaze B2 | Optional cloud backup | Phase 5 |
+| **Applications** | Immich | Photo management | Phase 3 |
+| **AI** | Ollama | LLM inference | Phase 6 |
+| | Open WebUI | AI chat frontend | Phase 6 |
+| **Agents** | OpenClaw | Multi-user AI agents | Future |
 
 ---
 
-## 3) Standard Filesystem Layout
+## 3. Filesystem Layout
 
 ```text
 ~/homelab/
-  apps/
-    <app-name>/
-      compose.yml
-      .env
-      data/
-      backups/
-      README.md
-  platform/
-    dockge/
-    homepage/
-    caddy/
-    uptime-kuma/
-    authentik/
-    tailscale/
-  ai/
-    ollama/
-    open-webui/
-    models/                 # preferably external storage mount later
-  backups/
-    local/
-    manifests/
-    restore-tests/
-  scripts/
-    app-up
-    app-down
-    app-update
-    app-backup
-    app-restore
-    dr-verify
-  docs/
-    inventory.md
-    access-matrix.md
-    runbook.md
-    dr-runbook.md
+├── apps/
+│   └── <app-name>/
+│       ├── compose.yml
+│       ├── .env
+│       ├── .env.example
+│       ├── data/
+│       ├── backups/
+│       ├── app-contract.yaml
+│       └── README.md
+├── platform/
+│   ├── dockge/
+│   ├── homepage/
+│   ├── caddy/
+│   ├── uptime-kuma/
+│   ├── authentik/
+│   └── tailscale/
+├── ai/
+│   ├── ollama/
+│   ├── open-webui/
+│   └── models/                  # external storage mount target
+├── backups/
+│   ├── local/
+│   ├── manifests/
+│   └── restore-tests/
+├── scripts/
+│   ├── app-up
+│   ├── app-down
+│   ├── app-update
+│   ├── app-backup
+│   ├── app-restore
+│   └── dr-verify
+└── docs/
+    ├── app-spec.md              # developer application specification
+    ├── ops-standard.md          # backup, DR, security, restart standards
+    ├── rollout-plan.md          # phased implementation plan
+    ├── agent-model.md           # OpenClaw multi-agent access model
+    ├── inventory.md
+    ├── access-matrix.md
+    ├── nodes.md
+    ├── runbook.md
+    ├── dr-runbook.md
+    ├── notes/
+    │   └── mac-mini.md
+    └── adrs/
+        ├── template.md
+        ├── 001-docker-compose.md
+        ├── 002-authentik-identity.md
+        ├── 003-caddy-reverse-proxy.md
+        ├── 004-tailscale-remote-access.md
+        └── 005-restic-backups.md
 ```
 
-Rules:
+**Rules:**
 - Folder names are lowercase kebab-case.
-- Persistent app data must live under that app folder (or approved external mount path).
-- All exposed ports, domains, owners, and backup targets must be recorded in `docs/inventory.md`.
+- Persistent app data lives under that app's folder (or an approved external mount path).
+- All exposed ports, domains, owners, and backup targets are recorded in `docs/inventory.md`.
 
 ---
 
-## 4) Networking & Remote Access Standard
+## 4. Networking & Remote Access
 
-## Local access
-- Stable local hostnames through Caddy, e.g.:
-  - `immich.home`
-  - `login.home` (Authentik)
-  - `status.home` (Kuma)
+### Local access
+Stable local hostnames via Caddy:
+- `immich.home` — photo management
+- `login.home` — Authentik
+- `status.home` — Uptime Kuma
+- `ai.home` — Open WebUI
 
-## Remote access
+### Remote access
 - Tailscale-only by default (MagicDNS preferred).
-- Avoid router port forwarding unless explicitly approved.
+- No router port forwarding unless explicitly approved and documented.
 
-## Port policy
+### Port policy
 - Prefer internal Docker networks.
-- Publish host ports only when needed.
+- Publish host ports only when required.
 - Admin UIs restricted to LAN/Tailscale.
 
 ---
 
-## 5) Storage Strategy (Mac mini limited disk)
+## 5. Storage Strategy
 
-## Phase A (start on internal disk)
-- Run platform services on internal storage.
-- Keep media-heavy apps constrained initially.
-- Trigger thresholds:
-  - Warning at 75% disk used
-  - Action required at 85% disk used
+### Phase A — Internal disk
+- Platform services run on internal storage.
+- Media-heavy apps constrained initially.
+- **Warning** at 75% disk used, **action required** at 85%.
 
-## Phase B (external storage expansion)
-- Add external SSD for large-state workloads.
-- Move first:
-  - Immich media/library
-  - backup repositories and snapshots
-  - AI model files
-- Keep configs/lightweight DBs on internal disk unless needed.
-- Use stable mount path convention, e.g.:
-  - `/Volumes/HomelabData/immich-library`
-  - `/Volumes/HomelabData/backups`
-  - `/Volumes/HomelabData/models`
+### Phase B — External expansion
+Add external SSD for large-state workloads. Migration priority:
+1. Immich media/library
+2. Backup repositories and snapshots
+3. AI model files
+
+Stable mount path convention:
+- `/Volumes/HomelabData/immich-library`
+- `/Volumes/HomelabData/backups`
+- `/Volumes/HomelabData/models`
+
+Configs and lightweight databases remain on internal disk.
 
 ---
 
-## 6) Identity & Family User Management Standard
+## 6. Identity & Access Management
 
-## Identity provider
-- Authentik hosted on Mac mini (critical service).
+### Identity provider
+Authentik hosted on the Mac mini (critical service).
 
-## User policy
-- One account per person (no shared family password).
-- Group-based access control (RBAC), not one-off per-user app tweaks.
+### User policy
+- One account per person — no shared family passwords.
+- Group-based access control (RBAC), not per-user app tweaks.
 
-## Baseline groups
-- `homelab-admin`
-- `parents`
-- `kids`
-- `immich-admin`
-- `immich-user`
-- `ai-admin`
-- `ai-user`
-- `ai-kids`
+### Baseline groups
 
-## App integration pattern
-1. Create app in Authentik.
-2. Configure OIDC/SAML/LDAP as supported.
+| Group | Purpose |
+|-------|---------|
+| `homelab-admin` | Full platform administration |
+| `parents` | Parent-level access across apps |
+| `kids` | Child-level access with safety restrictions |
+| `immich-admin` | Immich administration |
+| `immich-user` | Immich standard user |
+| `ai-admin` | AI platform administration |
+| `ai-user` | AI standard user |
+| `ai-kids` | AI access with child safety policy |
+
+New apps add `<app>-admin` and `<app>-user` groups at minimum.
+
+### App integration pattern
+1. Register app in Authentik.
+2. Configure OIDC (preferred), SAML, or LDAP as supported.
 3. Map Authentik groups to app roles.
-4. Keep a local emergency admin account (“break-glass”), documented securely.
+4. Maintain a local emergency admin account ("break-glass"), documented securely.
 
-## UX customization
-- Authentik branding customization allowed (logo/colors/domain/text).
-- Avoid deep custom UI forks that increase upgrade fragility.
-
----
-
-## 7) App Deployment Standard (example: Immich)
-
-For each app:
-1. Create app folder + template files.
-2. Deploy with pinned image tags.
-3. Add to Homepage + Uptime Kuma.
-4. Wire Authentik SSO when supported.
-5. Add backup policy + restore test entry.
-6. Record in `inventory.md` and `access-matrix.md`.
-
-Immich-specific:
-- Start with conservative settings while on internal disk.
-- Move media library to external storage in Phase B.
-- Map `immich-admin` and `immich-user` groups through Authentik integration.
+### UX customisation
+Authentik branding (logo, colours, domain, text) is encouraged. Avoid deep custom UI forks that increase upgrade fragility.
 
 ---
 
-## 8) Backup & Disaster Recovery Standard (Hybrid Offsite)
+## 7. AI Integration (future)
 
-## Backup model (3-2-1)
-- 3 copies of data
-- 2 locations/media (local + offsite)
-- 1 offsite copy minimum
-
-## Targets
-- Local backup: Mac mini (fast restore)
-- Offsite primary: Relative’s Pi + external HDD (over Tailscale)
-- Offsite optional secondary: Backblaze B2
-
-## Tooling
-- Restic with client-side encryption before transfer.
-
-## Scope (minimum)
-- Compose files, `.env`, configs
-- Authentik DB + secrets
-- App DBs (Immich/Postgres, etc.)
-- User content/media
-- AI workflows/configs (model weights optional; can re-pull)
-
-## Schedule (starter)
-- Daily incremental
-- Weekly checkpoint
-- Monthly retained snapshot
-- Suggested retention: 14 daily / 8 weekly / 6 monthly / 1 yearly
-
-## DR testing
-- Quarterly restore drill required.
-- Document measured RPO/RTO in `dr-runbook.md`.
+- **Runtime:** Ollama + Open WebUI via Compose.
+- **Storage:** Model files on external SSD/NVMe.
+- **Access:** Authentik groups gate usage (`ai-admin`, `ai-user`, `ai-kids`). Tools and internet connectors restricted by group.
+- **Operations:** Monitor CPU/RAM/disk and request latency. Set usage quotas and concurrency limits. Cloud fallback optional, not default.
 
 ---
 
-## 9) Security Baseline
+## 8. Multi-Node Scaling (future)
 
-1. Strong unique credentials in password manager.
-2. MFA for admin/parent accounts.
-3. Tailscale-only remote administration.
-4. No anonymous public shares by default.
-5. Monthly patch/update window for macOS + containers.
-6. Quarterly exposure review (ports, apps, stale accounts, old tokens).
-7. Backup key escrow process (owner + emergency sealed copy).
+The architecture supports scaling beyond one Mac mini by adding specialised nodes.
 
----
+### Node roles
 
-## 10) Local AI Integration Standard (future hardware path)
+| Role | Hardware | Services |
+|------|----------|----------|
+| **Control** | Mac mini (primary) | Authentik, Caddy, Homepage, Uptime Kuma, OpenClaw |
+| **App** | Additional machines | Immich, custom apps |
+| **AI** | GPU machine | Ollama/vLLM, model storage |
+| **DR** | Offsite Pi + HDD | Encrypted backup target, restore staging |
 
-## Deployment model
-- `ollama` + `open-webui` via Compose first.
-- External storage for model files.
+### Key principles
+- Stable service URLs regardless of host node (`immich.home` works whether Immich runs on Mac mini or an app node).
+- Single Authentik authority for all nodes.
+- App data stays local to hosting node; replicate via backup/restore, not ad-hoc shared mounts.
+- Node failure is isolated — AI node issues don't impact the identity/control plane.
 
-## Access model
-- Authentik groups gate AI access (`ai-admin`, `ai-user`, `ai-kids`).
-- Restrict tools/internet connectors by group.
-
-## Operations
-- Monitor CPU/RAM/disk and request latency.
-- Set usage quotas/concurrency limits.
-- Keep cloud fallback optional, not default.
-
----
-
-## 11) OpenClaw Management Contract
-
-OpenClaw should:
-1. Operate primarily within `~/homelab/**`.
-2. Ask before destructive actions (delete/reset/migration).
-3. For updates: pre-check → backup → update → verify → report.
-4. Keep change log in `docs/runbook.md`.
-5. Keep DR/restore outcomes in `docs/dr-runbook.md`.
-
----
-
-## 12) Restart & Recovery Standard (Minimal User Input)
-
-Goal: after host restart, services return online automatically with no routine manual intervention.
-
-## Auto-start layers
-1. **Host layer (launchd):** OpenClaw and startup orchestrator must run with `RunAtLoad` + `KeepAlive`.
-2. **Container layer (Compose):** all services use `restart: unless-stopped`.
-
-## Deterministic boot sequence
-A startup orchestrator script must run on boot and follow this order:
-1. Wait for network readiness.
-2. Wait for required mounts (especially external storage paths).
-3. Start platform core first: Tailscale → Caddy → Authentik → monitoring/dashboard.
-4. Start application stacks (Immich and other apps).
-5. Execute health checks and record status.
-
-## External storage guardrails
-- If an app depends on external storage and mount is missing, do not start that app in write mode.
-- Raise alert and mark service degraded rather than risking data corruption.
-
-## Post-boot health policy
-- Run health checks for every platform/app service endpoint.
-- If unhealthy: retry start, then targeted restart.
-- If still unhealthy after retries: alert user with clear remediation notes.
-
-## User experience target
-- Typical reboot recovery should complete in ~2–5 minutes.
-- User should be able to open dashboard and see service state without CLI steps.
-
-## Reliability validation
-- Perform a planned reboot recovery test at least monthly.
-- Log startup outcomes and incidents in `docs/runbook.md`.
-- Maintain a one-command recovery helper in `scripts/` for common failures.
-
----
-
-## 13) Multi-Agent Access Model (User / Child / Admin)
-
-Goal: every person gets an agent aware of their own context with limited permissions; administrators get a separate privileged agent for platform operations.
-
-## Agent lanes
-1. **User Agent Lane (default):**
-   - per-user isolated workspace and memory scope
-   - per-user scoped app credentials/tokens
-   - access only to apps/data allowed by Authentik groups
-   - no unrestricted host/system administration
-
-2. **Child Agent Lane:**
-   - same isolation as user lane, with stricter safety policy
-   - limited tools and external actions by default
-   - app/data access restricted to child-owned or explicitly shared resources
-   - optional parent-approval gates for sensitive actions (share/export/delete)
-
-3. **Admin Agent Lane:**
-   - full homelab management scope (install/update/configure/backup/DR)
-   - access to infrastructure tools and system operations
-   - explicit confirmation required for destructive actions
-
-## Separation requirements
-- Isolate per-user: workspace, memory files, credentials, schedules/jobs, and logs.
-- Enforce least privilege in every lane.
-- Do not allow cross-user data access unless explicitly shared by policy.
-
-## Identity & policy integration
-- Authentik is source of truth for users/groups.
-- Groups define both app access and agent capability level.
-- Suggested baseline groups:
-  - `homelab-admin`
-  - `parents`
-  - `kids`
-  - app-specific role groups (e.g., `immich-admin`, `immich-user`, `ai-user`, `ai-kids`)
-
-## App rollout requirement
-Every new app must include:
-1. Auth mapping (OIDC/SAML/LDAP or proxy-auth fallback)
-2. Role-to-group mapping documented in `docs/access-matrix.md`
-3. Data scope rules for user/child/admin lanes
-4. Audit and backup coverage before production use
-
-## Operational controls
-- All admin-lane infrastructure actions are logged.
-- Break-glass admin account maintained and documented securely.
-- Access revocation must be immediate via Authentik group/user disable.
-
----
-
-## 14) Multi-Node Scaling Architecture (Extendable Home Cluster)
-
-Goal: scale beyond one Mac mini by adding specialized nodes without changing user experience, identity model, or operational standards.
-
-## Node roles
-1. **Control Node (primary Mac mini):**
-   - Authentik, Caddy, Homepage, Uptime Kuma, OpenClaw admin control plane
-2. **App Node(s):**
-   - application stacks (Immich, custom family/developer apps)
-3. **AI Node (dedicated GPU machine):**
-   - Ollama/vLLM inference services and model storage
-4. **DR Node (offsite Pi + external drive):**
-   - encrypted backup target and restore staging
-
-## Placement policy
-- Assign services by role and resource profile (CPU, RAM, disk, GPU).
-- Keep identity and routing stable while moving app workloads between nodes.
-- Record placement decisions in `docs/inventory.md` and `docs/nodes.md`.
-
-## Unified routing model
-- Keep stable service URLs regardless of host node (e.g., `immich.home`, `ai.home`, `login.home`).
-- Caddy/front-door routes traffic to the correct backend node over trusted network paths.
-- Tailscale + internal DNS/MagicDNS provide secure reachability across nodes.
-
-## Identity continuity
-- Single Authentik authority for all nodes/apps.
-- App access remains group-driven, independent of where app is hosted.
-
-## Multi-node data strategy
-- Default: app data stays local to the hosting node.
-- Replicate via backup/restore and explicit migration workflows (not ad-hoc shared mounts).
-- Keep heavy media/model datasets on external SSD/NVMe attached to the service node.
-
-## Capacity expansion runbook
-When adding a new machine:
-1. Join node to Tailscale.
+### Adding a new node
+1. Join to Tailscale.
 2. Apply node baseline (Docker, monitoring hooks, backup hooks).
-3. Register node in `docs/nodes.md` and inventory.
+3. Register in `docs/nodes.md` and inventory.
 4. Deploy assigned stacks from templates.
 5. Add health checks and dashboard entries.
 6. Run restart and recovery validation.
 
-## Failure isolation
-- Issues on AI node should not impact core identity/control plane.
-- App node failure should be recoverable by redeploying stack on another node using same templates and backups.
+---
+
+## Related Documents
+
+| Document | Purpose |
+|----------|---------|
+| [docs/app-spec.md](docs/app-spec.md) | Developer application specification — how to build apps for this platform |
+| [docs/ops-standard.md](docs/ops-standard.md) | Operational standards — backup, DR, security, restart/recovery |
+| [docs/rollout-plan.md](docs/rollout-plan.md) | Phased implementation plan and status tracking |
+| [docs/agent-model.md](docs/agent-model.md) | OpenClaw multi-agent access model |
+| [docs/notes/mac-mini.md](docs/notes/mac-mini.md) | Hardware-specific notes for the Mac mini |
+| [docs/adrs/](docs/adrs/) | Architecture Decision Records |
+| [docs/inventory.md](docs/inventory.md) | Service inventory (ports, domains, owners, backup targets) |
+| [docs/access-matrix.md](docs/access-matrix.md) | User/group to app role mappings |
+| [docs/nodes.md](docs/nodes.md) | Node registry for multi-node deployments |
+| [docs/runbook.md](docs/runbook.md) | Operational change log |
+| [docs/dr-runbook.md](docs/dr-runbook.md) | Disaster recovery procedures and drill results |
 
 ---
 
-## 15) Rollout Plan
+## Changelog
 
-## Phase 1: Foundation
-- Create `~/homelab` structure
-- Deploy Dockge, Homepage, Caddy, Tailscale, Uptime Kuma
-- Create docs: `inventory.md`, `runbook.md`
-
-## Phase 2: Identity
-- Deploy Authentik
-- Create family users/groups
-- Apply branding and policy baseline
-
-## Phase 3: Apps
-- Deploy Immich with SSO + monitoring + backup
-- Optional Copyparty migration into Compose standard
-
-## Phase 4: Storage expansion
-- Attach external SSD
-- Migrate media/backups/models to external mount paths
-
-## Phase 5: DR hardening
-- Deploy offsite Pi backup receiver + drive
-- Enable encrypted offsite replication
-- Add optional Backblaze B2 secondary copy
-- Run first full restore drill
-
-## Phase 6: Local AI
-- Deploy Ollama + Open WebUI
-- Apply group-based access and safety defaults
-
----
-
-## 16) Catastrophic Rebuild From Backups (Bare-Metal Recovery)
-
-Goal: if primary systems are lost/destroyed, rebuild a working homelab from backups and documented procedures alone.
-
-## Mandatory backup scope for full rebuild
-1. **Platform manifests/config:** all `compose.yml`, `.env`, reverse proxy configs, dashboard and monitoring configs.
-2. **Identity core:** Authentik database, configuration exports, and signing/encryption keys.
-3. **Application state:** app databases, media/content libraries, and app-specific config folders.
-4. **Operations docs:** `inventory.md`, `nodes.md`, `access-matrix.md`, `runbook.md`, `dr-runbook.md`.
-5. **Secrets and recovery credentials:** backup repository keys/passwords, API tokens, break-glass credentials (stored securely outside primary site).
-
-## Recovery dependency order (must follow)
-1. Prepare replacement hardware/OS.
-2. Restore baseline connectivity (network + Tailscale).
-3. Restore homelab manifests and secrets.
-4. Restore identity plane first (Authentik + required keys).
-5. Restore control plane (Caddy, Homepage, Uptime Kuma, OpenClaw).
-6. Restore application databases and persistent data.
-7. Start app stacks and run health checks.
-8. Validate user logins, RBAC/group mappings, and critical user workflows.
-
-## Rebuild readiness requirements
-- Backups are encrypted and replicated offsite (Pi target; optional B2 secondary).
-- Restore instructions are versioned and current.
-- Required credentials are available via emergency access process.
-- Restore process is executable by a second trusted operator, not only one person.
-
-## Recovery objectives
-- Initial target **RPO**: ≤24 hours.
-- Initial target **RTO**: core platform restored same day (4–8 hours typical), full media restore may take longer.
-
-## Verification policy (non-negotiable)
-- Perform quarterly bare-metal restore drills (or equivalent staged simulation).
-- Record pass/fail, elapsed time, data loss observed, and blockers in `docs/dr-runbook.md`.
-- Any failed drill creates mandatory remediation tasks before next cycle.
-
----
-
-## 17) Definition of Done (v1.1)
-
-This standard is considered active when:
-- `~/homelab/` structure exists and is documented
-- Core platform and Authentik are running
-- At least one app (Immich) is deployed with monitoring + backup + access mapping
-- Offsite backup to Pi target is operational (B2 optional configured if desired)
-- Restore drill has been executed and documented
-
----
-
-## 18) Developer Application Specification (Platform Conformance v1)
-
-Goal: enable developers (including coding-agent workflows) to build apps that integrate cleanly with identity, access, operations, backup, and multi-agent controls.
-
-## Packaging & runtime (required)
-1. App must run in Docker.
-2. Required files: `Dockerfile` (or pinned upstream image), `compose.yml`, `.env.example`, `README.md`.
-3. Container runs as non-root where feasible.
-4. Restart policy must be `unless-stopped`.
-
-## Standard app folder layout (required)
-```text
-~/homelab/apps/<app-name>/
-  compose.yml
-  .env
-  .env.example
-  data/
-  backups/
-  README.md
-  app-contract.yaml
-```
-- App name is lowercase kebab-case.
-- Persistent state must live under `data/` (or approved external mount path).
-
-## Identity & access integration (required)
-1. Preferred auth mode: OIDC with Authentik.
-2. Fallback modes: SAML/LDAP, then proxy-auth pattern.
-3. Role groups required at minimum: `<app>-admin`, `<app>-user` (optional: `<app>-readonly`, `<app>-kids`).
-4. No shared hardcoded credentials.
-
-## Networking & exposure (required)
-1. Private by default (LAN/Tailscale).
-2. No direct public exposure without explicit approval.
-3. Stable hostname via Caddy routing (e.g., `<app>.home`).
-4. All ports/protocols documented in `docs/inventory.md`.
-
-## Health, observability, and operations (required)
-1. Health endpoint required (`/health` or equivalent).
-2. Logs to stdout/stderr.
-3. README must include start/stop/update/rollback/backup/restore commands.
-4. Uptime Kuma monitor must be defined before production use.
-
-## Backup & recovery contract (required)
-1. App must declare critical data scope (DB/config/content).
-2. Backup procedure and restore procedure must be documented.
-3. App must be restorable on new hardware from backups + manifests + secrets.
-4. Expected RPO/RTO class must be specified.
-
-## Security baseline (required)
-1. Secrets via env/secret files only (never hardcoded in source).
-2. Least-privilege defaults for app/service roles.
-3. Pinned dependency/image versions and update path documented.
-4. Input validation and sensible auth/session defaults.
-
-## Multi-agent compatibility (required)
-App must define allowed actions per lane:
-- User lane
-- Child lane
-- Admin lane
-
-At minimum classify permissions by: `read`, `write`, `share/export`, `delete`, `configure`.
-
-## App contract manifest (required)
-Each app includes `app-contract.yaml`, example:
-```yaml
-name: example-app
-version: 1.0.0
-auth:
-  mode: oidc
-  provider: authentik
-  groups:
-    admin: example-app-admin
-    user: example-app-user
-network:
-  hostname: example-app.home
-  internalPort: 8080
-data:
-  paths:
-    - ./data
-backup:
-  includes:
-    - data
-  restoreTest: documented
-agentScopes:
-  user: [read, write]
-  child: [read]
-  admin: [read, write, delete, configure]
-health:
-  endpoint: /health
-```
-
-## Release gates (must all pass before go-live)
-1. Build + run via Compose passes.
-2. Authentik integration works and group mapping verified.
-3. Health checks green in Uptime Kuma.
-4. Backup and restore test completed.
-5. Dashboard/inventory/access-matrix updated.
-6. Security checklist reviewed.
-
----
-
-## 19) Notes for this specific Mac mini
-
-- Keep background resource use moderate due to shared Minecraft usage.
-- Schedule heavy jobs (indexing/backups) outside peak gaming times.
-- Prefer conservative defaults first, then scale after usage proves value.
-
----
-
-Version: **v1.2-draft**  
-Date: 2026-02-17  
+| Version | Date | Changes |
+|---------|------|---------|
+| 1.2-draft | 2026-02-17 | Restructured into multi-document format. Added architecture diagram, status matrix, ADRs, OpenClaw definition. Separated app spec, ops standards, rollout plan, and agent model into dedicated documents. |
+| 1.1 | 2026-02-17 | Initial monolithic design document |
