@@ -207,6 +207,60 @@ Expose the teardown procedures from [teardown.md](teardown.md) as guided workflo
 
 ---
 
+## 6. Offsite Backup Management
+
+Monitor and configure the offsite backup system (Raspberry Pi + external HDD at the DR site) from the control panel. This section is an **initial outline** — capabilities will expand as the DR infrastructure matures.
+
+### 6.1 Offsite Node Status
+
+- **Online / offline indicator** — ping the offsite Pi via Tailscale and show connection state with last-seen timestamp
+- Tailscale device status (connected, last handshake, IP address)
+- Pi system health when reachable: CPU, memory, disk usage, uptime, temperature
+- External HDD mount status — confirm the backup target volume is attached and writable
+- Alert if the offsite node has been unreachable for more than a configurable threshold (default: 24 hours)
+
+### 6.2 Backup Status Dashboard
+
+- **Last successful backup** — timestamp, duration, snapshot size, and repository the snapshot was written to
+- **Last offsite replication** — when data was last synced to the Pi (distinct from local backup)
+- Snapshot inventory: list recent Restic snapshots across all repositories (local, offsite, B2 if configured)
+- Repository health: last `restic check` result and when it was run
+- Visual timeline or table of backup history (success / failure / skipped) over the past 30 days
+
+### 6.3 Backup Configuration
+
+- View and edit backup targets (local path, offsite Pi SFTP/Restic endpoint, optional B2 bucket)
+- Configure backup schedule (daily incremental, weekly checkpoint, monthly snapshot — per [ops-standard.md](ops-standard.md) § 1)
+- Set retention policy (snapshots to keep: daily / weekly / monthly / yearly)
+- Manage Restic repository credentials (reference only — actual secrets stored in `.env`, not in the panel)
+- Enable or disable individual backup targets without removing their configuration
+
+### 6.4 On-Demand Actions
+
+- **Trigger backup now** — run an immediate Restic backup for a selected app or the full platform
+- **Trigger offsite sync** — force replication to the Pi outside the normal schedule
+- **Verify backup integrity** — run `restic check` against a selected repository and display results
+- **Test restore** — initiate a restore-to-temp-directory for a selected snapshot to confirm recoverability (does not affect production data)
+
+### 6.5 Alerts & Notifications
+
+- Offsite node offline for > threshold
+- Backup job failed or skipped
+- No successful offsite replication in > 48 hours
+- Repository approaching disk capacity on the Pi (warning at 75%, critical at 90%)
+- `restic check` returned errors
+- Notification delivery: surface in control panel dashboard; future expansion to email/push/webhook
+
+### 6.6 Future Expansion
+
+- **B2 cloud tier management** — enable/disable optional Backblaze B2 backup, monitor usage and cost
+- **Multi-node backup routing** — when additional nodes exist, show per-node backup status and configure replication targets per node
+- **Restore wizard** — guided point-in-time restore from any backup target (local, offsite, B2) integrated with the system reset workflow (§ 5)
+- **Backup scheduling calendar** — visual schedule of all backup jobs across the platform
+- **Bandwidth throttling** — configure offsite sync bandwidth limits to avoid saturating the home network
+
+---
+
 ## Technical Decisions (to be made)
 
 These will become ADRs as the control panel moves to implementation.
@@ -230,12 +284,12 @@ These will become ADRs as the control panel moves to implementation.
 │   (admin.home / panel.home)  │
 └──────────┬───────────────────┘
            │
-     ┌─────┼─────────────────────────────────┐
-     │     │                                  │
-     ▼     ▼           ▼          ▼           ▼
-  Docker   Authentik   Uptime     Filesystem  Restic
-  Engine   Admin API   Kuma API   (compose,   CLI
-  API                             .env, data)
+     ┌─────┼──────────────────────────────────────────┐
+     │     │                                           │
+     ▼     ▼           ▼          ▼           ▼        ▼
+  Docker   Authentik   Uptime     Filesystem  Restic   Offsite Pi
+  Engine   Admin API   Kuma API   (compose,   CLI      (Tailscale
+  API                             .env, data)           + SSH/SFTP)
 ```
 
 | Integration | Method | Purpose |
@@ -245,6 +299,7 @@ These will become ADRs as the control panel moves to implementation.
 | Uptime Kuma | API / push monitors | Health check status, create/delete monitors |
 | Homepage | Config file (`services.yaml`) | Add/remove dashboard entries |
 | Restic | CLI wrapper | Trigger backups, check integrity, list snapshots |
+| Offsite Pi | Tailscale + SSH/SFTP | Node health, replication status, disk usage, remote commands |
 | Filesystem | Direct read/write | Compose files, `.env` files, `app-contract.yaml`, docs |
 
 ---
@@ -271,6 +326,7 @@ This application does not need to ship fully-featured on day one. Build incremen
 | **Phase C** | User management: list/create/disable users, manage groups | Authentik API integration |
 | **Phase D** | App deployment: guided install, update workflow, rollback | Docker + Authentik + filesystem |
 | **Phase E** | System reset: teardown wizard, backup verification | Restic CLI + full API integration |
+| **Phase F** | Offsite backup management: node status, replication monitoring, on-demand actions | Tailscale + SSH to offsite Pi + Restic |
 
 ---
 
