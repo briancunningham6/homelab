@@ -1,0 +1,49 @@
+# ── Secrets ──────────────────────────────────────────────────────────────────
+# Never commit .env files — use .env.example instead
+.env
+*.env
+
+# ── Persistent state / runtime data ──────────────────────────────────────────
+# Docker volumes and bind-mount data directories
+data/
+backups/
+
+# ── macOS system files ────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Icon?
+ehthumbs.db
+Thumbs.db
+
+# ── Editor / IDE ──────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── Compiled / generated output ──────────────────────────────────────────────
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+*.class
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.dylib
+dist/
+build/
+*.egg-info/
+.eggs/
+node_modules/
+.npm/
+*.log
+
+# ── Tailscale state ───────────────────────────────────────────────────────────
+platform/tailscale/data/
