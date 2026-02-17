@@ -44,6 +44,7 @@ graph TB
     end
 
     subgraph "Control Node · Mac mini"
+        Panel[Control Panel · Admin UI]
         Caddy[Caddy · Reverse Proxy]
         Authentik[Authentik · Identity/SSO]
         Homepage[Homepage · Dashboard]
@@ -82,6 +83,10 @@ graph TB
     Authentik --> Apps
     Authentik --> WebUI
     Authentik --> OC
+    Caddy --> Panel
+    Authentik --> Panel
+    Panel --> Dockge
+    Panel --> Kuma
     Immich --> Restic
     Apps --> Restic
     Restic --> PiDR
@@ -94,6 +99,7 @@ graph TB
 | Layer | Component | Purpose | Status |
 |-------|-----------|---------|--------|
 | **Core platform** | Docker Engine + Compose | Container runtime | Ready |
+| | Control Panel | Unified admin management UI | Design |
 | | Dockge | Stack management UI | Phase 1 |
 | | Homepage | Dashboard | Phase 1 |
 | | Caddy | Reverse proxy / local DNS | Phase 1 |
@@ -124,6 +130,7 @@ graph TB
 │       ├── app-contract.yaml
 │       └── README.md
 ├── platform/
+│   ├── control-panel/
 │   ├── dockge/
 │   ├── homepage/
 │   ├── caddy/
@@ -146,6 +153,7 @@ graph TB
 │   ├── app-restore
 │   └── dr-verify
 └── docs/
+    ├── control-panel.md          # homelab control panel design outline
     ├── app-spec.md              # developer application specification
     ├── ops-standard.md          # backup, DR, security, restart standards
     ├── rollout-plan.md          # phased implementation plan
@@ -296,6 +304,7 @@ The architecture supports scaling beyond one Mac mini by adding specialised node
 
 | Document | Purpose |
 |----------|---------|
+| [docs/control-panel.md](docs/control-panel.md) | Homelab Control Panel — unified admin management interface |
 | [docs/app-spec.md](docs/app-spec.md) | Developer application specification — how to build apps for this platform |
 | [docs/ops-standard.md](docs/ops-standard.md) | Operational standards — backup, DR, security, restart/recovery |
 | [docs/rollout-plan.md](docs/rollout-plan.md) | Phased implementation plan and status tracking |
