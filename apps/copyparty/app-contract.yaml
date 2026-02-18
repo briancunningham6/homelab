@@ -1,0 +1,52 @@
+name: copyparty
+version: 1.20.7
+
+runtime:
+  image: copyparty/ac
+  version: "1.20.7"
+  choice: Copyparty (ac edition)
+  rationale: >
+    Self-hosted file server with resumable uploads, media indexing, per-user
+    volume isolation, and native reverse-proxy header authentication. The 'ac'
+    (all capabilities) image includes thumbnail generation and audio transcoding.
+
+auth:
+  mode: proxy-header
+  provider: authentik
+  mechanism: >
+    Caddy uses Authentik's forward-auth proxy provider. Unauthenticated requests
+    are redirected to Authentik login. After authentication, Caddy injects
+    X-authentik-username and X-authentik-groups headers. Copyparty reads these
+    via idp-h-usr / idp-h-grp. A shared secret header (idp-h-key) prevents
+    clients from spoofing the auth headers.
+  groups:
+    admin: copyparty-admin
+    user: copyparty-user
+  limitation: >
+    No auto-provisioning. Users must be added to an Authentik-bound group to
+    gain access. Per-user folder structure (/u/${u}/) is created dynamically on
+    first login via Copyparty variable substitution — no config file changes
+    required for standard users. Custom per-user permission overrides require
+    manual copyparty.conf edits. Future: script to sync Authentik group
+    memberships with copyparty.conf overrides.
+
+network:
+  hostname: copyparty.home
+  internalPort: 3923
+
+data:
+  paths:
+    - ./data/library    # All user files — shared, per-user homes, media
+    - ./data/db         # Index, thumbnail cache, upload database (regeneratable)
+
+backup:
+  includes:
+    - data/library
+  excludes:
+    - data/db           # Regeneratable — excluded to reduce backup size
+  rpoClass: daily
+  restoreTest: documented
+
+health:
+  endpoint: /
+  note: No dedicated /health path — root returns 200 when server is ready

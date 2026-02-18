@@ -1,0 +1,256 @@
+#!/usr/bin/env bash
+# setup-authentik-openclaw — Wire OpenClaw OIDC integration with Authentik via API
+#
+# Prerequisites:
+#   1. Both stacks running (platform-up)
+#   2. AUTHENTIK_BOOTSTRAP_TOKEN set in platform/authentik/.env
+#      Generate with: openssl rand -hex 32
+#      Add to .env as: AUTHENTIK_BOOTSTRAP_TOKEN=<value>
+#      Restart authentik: docker compose -f platform/authentik/compose.yml up -d
+#
+# What this script does:
+#   - Creates groups: openclaw-admin, openclaw-user, openclaw-child
+#   - Creates an OAuth2/OIDC provider for OpenClaw (Open WebUI)
+#   - Creates the Authentik application bound to that provider
+#   - Binds groups to the application
+#   - Prints the Client ID, Client Secret, and Issuer URL to configure in .env
+#
+# Usage:
+#   HOMELAB_DIR=~/dev/homelab scripts/setup-authentik-openclaw
+#   AUTHENTIK_TOKEN=<token> scripts/setup-authentik-openclaw   # override token
+
+set -euo pipefail
+
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+BOLD='\033[1m'
+NC='\033[0m'
+
+HOMELAB_DIR="${HOMELAB_DIR:-$HOME/homelab}"
+AUTHENTIK_URL="http://localhost:80"
+AUTHENTIK_HOST="login.home"
+
+info()  { echo -e "${GREEN}✓${NC} $*"; }
+warn()  { echo -e "${YELLOW}⚠${NC} $*"; }
+err()   { echo -e "${RED}✗${NC} $*"; exit 1; }
+step()  { echo -e "\n${BOLD}── $* ──${NC}"; }
+
+# ── Resolve API token ─────────────────────────────────────────────────────────
+
+if [ -n "${AUTHENTIK_TOKEN:-}" ]; then
+  TOKEN="$AUTHENTIK_TOKEN"
+else
+  ENV_FILE="$HOMELAB_DIR/platform/authentik/.env"
+  if [ ! -f "$ENV_FILE" ]; then
+    err "Cannot find $ENV_FILE. Set AUTHENTIK_TOKEN= or populate the .env file."
+  fi
+  TOKEN=$(grep '^AUTHENTIK_BOOTSTRAP_TOKEN=' "$ENV_FILE" | cut -d= -f2- | tr -d '"' | tr -d "'")
+  if [ -z "$TOKEN" ]; then
+    err "AUTHENTIK_BOOTSTRAP_TOKEN is not set in $ENV_FILE.
+    Generate one with: openssl rand -hex 32
+    Add it to platform/authentik/.env and restart:
+      docker compose -f platform/authentik/compose.yml up -d"
+  fi
+fi
+
+HEADERS=(-H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -H "Host: $AUTHENTIK_HOST")
+
+# ── Helper: Authentik API call ────────────────────────────────────────────────
+
+ak_api() {
+  local method="$1"
+  local path="$2"
+  local body="${3:-}"
+  local http_code resp_body tmp_file
+
+  tmp_file=$(mktemp)
+
+  if [ -n "$body" ]; then
+    http_code=$(curl -s -o "$tmp_file" -w "%{http_code}" -X "$method" "${HEADERS[@]}" \
+      -d "$body" "$AUTHENTIK_URL/api/v3/$path")
+  else
+    http_code=$(curl -s -o "$tmp_file" -w "%{http_code}" -X "$method" "${HEADERS[@]}" \
+      "$AUTHENTIK_URL/api/v3/$path")
+  fi
+
+  resp_body=$(cat "$tmp_file")
+  rm -f "$tmp_file"
+
+  if [ "$http_code" -lt 200 ] || [ "$http_code" -ge 300 ]; then
+    echo "API error $http_code on $method /api/v3/$path: $resp_body" >&2
+    return 1
+  fi
+  echo "$resp_body"
+}
+
+# ── Check connectivity ────────────────────────────────────────────────────────
+
+step "Checking connectivity"
+STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 \
+  "${HEADERS[@]}" "$AUTHENTIK_URL/api/v3/core/users/me/")
+if [ "$STATUS" != "200" ]; then
+  err "Cannot reach Authentik API (HTTP $STATUS). Is the stack running and is AUTHENTIK_BOOTSTRAP_TOKEN valid?"
+fi
+info "Authentik API reachable"
+
+# ── Get/create flow UUIDs needed for provider ─────────────────────────────────
+
+step "Resolving flows"
+AUTH_FLOW_SLUG="default-authentication-flow"
+AUTHZ_FLOW_SLUG="default-provider-authorization-implicit-consent"
+
+AUTH_FLOW_PK=$(ak_api GET "flows/instances/?slug=$AUTH_FLOW_SLUG" | \
+  python3 -c "import sys,json; r=json.load(sys.stdin); print(r['results'][0]['pk'])")
+info "Auth flow: $AUTH_FLOW_SLUG ($AUTH_FLOW_PK)"
+
+AUTHZ_FLOW_PK=$(ak_api GET "flows/instances/?slug=$AUTHZ_FLOW_SLUG" | \
+  python3 -c "import sys,json; r=json.load(sys.stdin); print(r['results'][0]['pk'])")
+info "Authorization flow: $AUTHZ_FLOW_SLUG ($AUTHZ_FLOW_PK)"
+
+# ── Get signing key ───────────────────────────────────────────────────────────
+
+SIGNING_KEY_PK=$(ak_api GET "crypto/certificatekeypairs/?managed=authentik%2Fdefault%2Fself-signed-certificate" | \
+  python3 -c "import sys,json; r=json.load(sys.stdin); print(r['results'][0]['pk'] if r['results'] else '')")
+if [ -z "$SIGNING_KEY_PK" ]; then
+  # Fall back to first available key
+  SIGNING_KEY_PK=$(ak_api GET "crypto/certificatekeypairs/?has_key=true" | \
+    python3 -c "import sys,json; r=json.load(sys.stdin); print(r['results'][0]['pk'])")
+fi
+info "Signing key: $SIGNING_KEY_PK"
+
+# ── Create groups ─────────────────────────────────────────────────────────────
+
+step "Creating groups"
+for GROUP in "openclaw-admin" "openclaw-user" "openclaw-child"; do
+  EXISTING=$(ak_api GET "core/groups/?name=$GROUP" | \
+    python3 -c "import sys,json; r=json.load(sys.stdin); print(r['pagination']['count'])")
+  if [ "$EXISTING" -gt 0 ]; then
+    warn "Group '$GROUP' already exists — skipping"
+  else
+    ak_api POST "core/groups/" "{\"name\": \"$GROUP\", \"is_superuser\": false}" > /dev/null
+    info "Created group: $GROUP"
+  fi
+done
+
+# ── Create OAuth2/OIDC provider ───────────────────────────────────────────────
+
+step "Creating OAuth2/OIDC provider for OpenClaw"
+EXISTING_PROVIDER=$(ak_api GET "providers/oauth2/?name=OpenClaw" | \
+  python3 -c "import sys,json; r=json.load(sys.stdin); print(r['pagination']['count'])")
+
+if [ "$EXISTING_PROVIDER" -gt 0 ]; then
+  warn "Provider 'OpenClaw' already exists — fetching credentials"
+  PROVIDER_RESPONSE=$(ak_api GET "providers/oauth2/?name=OpenClaw" | \
+    python3 -c "import sys,json; r=json.load(sys.stdin); p=r['results'][0]; print(p['pk'],'|',p['client_id'],'|',p['client_secret'])")
+else
+  PROVIDER_BODY=$(python3 - <<PYEOF
+import json
+print(json.dumps({
+  "name": "OpenClaw",
+  "authorization_flow": "$AUTHZ_FLOW_PK",
+  "authentication_flow": "$AUTH_FLOW_PK",
+  "client_type": "confidential",
+  "redirect_uris": "http://openclaw.home/oauth/callback",
+  "signing_key": "$SIGNING_KEY_PK",
+  "sub_mode": "hashed_user_id",
+  "include_claims_in_id_token": True,
+  "issuer_mode": "per_provider",
+  "access_code_validity": "minutes=1",
+  "access_token_validity": "minutes=5",
+  "refresh_token_validity": "days=30",
+  "property_mappings": [],
+  "scopes": []
+}))
+PYEOF
+)
+  PROVIDER_RESPONSE=$(ak_api POST "providers/oauth2/" "$PROVIDER_BODY" | \
+    python3 -c "import sys,json; p=json.load(sys.stdin); print(p['pk'],'|',p['client_id'],'|',p['client_secret'])")
+  info "Provider created"
+fi
+
+PROVIDER_PK=$(echo "$PROVIDER_RESPONSE" | cut -d'|' -f1 | tr -d ' ')
+CLIENT_ID=$(echo "$PROVIDER_RESPONSE" | cut -d'|' -f2 | tr -d ' ')
+CLIENT_SECRET=$(echo "$PROVIDER_RESPONSE" | cut -d'|' -f3 | tr -d ' ')
+
+# ── Create Application ────────────────────────────────────────────────────────
+
+step "Creating Authentik application"
+EXISTING_APP=$(ak_api GET "core/applications/?slug=openclaw" | \
+  python3 -c "import sys,json; r=json.load(sys.stdin); print(r['pagination']['count'])")
+
+if [ "$EXISTING_APP" -gt 0 ]; then
+  warn "Application 'openclaw' already exists — skipping"
+else
+  APP_BODY=$(python3 - <<PYEOF
+import json
+print(json.dumps({
+  "name": "OpenClaw",
+  "slug": "openclaw",
+  "provider": $PROVIDER_PK,
+  "meta_description": "AI agent — personal assistant for every family member",
+  "policy_engine_mode": "any"
+}))
+PYEOF
+)
+  ak_api POST "core/applications/" "$APP_BODY" > /dev/null
+  info "Application created"
+fi
+
+# ── Bind groups to application ────────────────────────────────────────────────
+
+step "Binding access groups to application"
+APP_OBJ_PK=$(ak_api GET "core/applications/?slug=openclaw" | \
+  python3 -c "import sys,json; r=json.load(sys.stdin); print(r['results'][0]['pk'])")
+
+for GROUP in "openclaw-admin" "openclaw-user" "openclaw-child"; do
+  GROUP_PK=$(ak_api GET "core/groups/?name=$GROUP" | \
+    python3 -c "import sys,json; r=json.load(sys.stdin); print(r['results'][0]['pk'])")
+
+  EXISTING_BINDING=$(ak_api GET "policies/bindings/?target=$APP_OBJ_PK&group=$GROUP_PK" | \
+    python3 -c "import sys,json; r=json.load(sys.stdin); print(r['pagination']['count'])")
+  if [ "$EXISTING_BINDING" -gt 0 ]; then
+    warn "Group '$GROUP' already bound to application — skipping"
+  else
+    BINDING_BODY=$(python3 - <<PYEOF
+import json
+print(json.dumps({
+  "target": "$APP_OBJ_PK",
+  "group": "$GROUP_PK",
+  "enabled": True,
+  "order": 0,
+  "timeout": 30,
+  "failure_result": False
+}))
+PYEOF
+)
+    ak_api POST "policies/bindings/" "$BINDING_BODY" > /dev/null
+    info "Bound group '$GROUP' to OpenClaw application"
+  fi
+done
+
+# ── Output ────────────────────────────────────────────────────────────────────
+
+echo ""
+echo -e "${BOLD}╔══════════════════════════════════════════════╗${NC}"
+echo -e "${BOLD}║       Authentik → OpenClaw Setup Complete     ║${NC}"
+echo -e "${BOLD}╚══════════════════════════════════════════════╝${NC}"
+echo ""
+echo -e "${BOLD}Add these values to ai/openclaw/.env:${NC}"
+echo ""
+echo -e "  OAUTH_CLIENT_ID=${GREEN}${CLIENT_ID}${NC}"
+echo -e "  OAUTH_CLIENT_SECRET=${GREEN}${CLIENT_SECRET}${NC}"
+echo -e "  OPENID_PROVIDER_URL=${GREEN}http://login.home/application/o/openclaw/${NC}"
+echo ""
+echo -e "${YELLOW}Next steps:${NC}"
+echo -e "  1. Copy the values above into ai/openclaw/.env"
+echo -e "  2. Set OPENAI_API_KEY in ai/openclaw/.env"
+echo -e "  3. Start the stack:"
+echo -e "     docker compose -f ai/openclaw/compose.yml up -d"
+echo -e "  4. Navigate to http://openclaw.home"
+echo -e "     Click 'Continue with Authentik' to log in"
+echo ""
+echo -e "${YELLOW}To grant a user access to OpenClaw:${NC}"
+echo -e "  In Authentik → Directory → Groups → openclaw-user → add the user"
+echo -e "  (or openclaw-admin for admin lane, openclaw-child for child lane)"
+echo ""

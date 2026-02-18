@@ -75,5 +75,22 @@ else
   info "No apps/ directory found — skipping app stacks"
 fi
 
+# Start all AI stacks
+section "Starting AI stacks"
+AI_BASE="$HOMELAB_DIR/ai"
+if [ -d "$AI_BASE" ]; then
+  for stack_dir in "$AI_BASE"/*/; do
+    [ -f "$stack_dir/compose.yml" ] || continue
+    STACK=$(basename "$stack_dir")
+    info "Starting AI stack: $STACK"
+    if ! docker compose -f "$stack_dir/compose.yml" up -d; then
+      warn "$STACK failed to start — continuing"
+    fi
+    sleep 3
+  done
+else
+  info "No ai/ directory found — skipping AI stacks"
+fi
+
 section "Platform startup complete"
 info "All services started. Run 'scripts/dr-verify' to check health."

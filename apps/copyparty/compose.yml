@@ -1,0 +1,21 @@
+services:
+  copyparty:
+    image: copyparty/ac:1.20.7
+    container_name: copyparty
+    restart: unless-stopped
+    volumes:
+      - ./config/copyparty.conf:/cfg/copyparty.conf:ro
+      - ./data/db:/cfg/hists
+      - ./data/library:/w
+    healthcheck:
+      test: ["CMD", "sh", "-c", "curl -sf http://localhost:3923/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+    networks:
+      - caddy-net
+
+networks:
+  caddy-net:
+    external: true

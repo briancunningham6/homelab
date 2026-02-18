@@ -36,6 +36,12 @@
         icon: immich
         server: my-docker
         container: immich-server
+    - Copyparty:
+        href: http://copyparty.home
+        description: File Sharing
+        icon: mdi-folder-multiple
+        server: my-docker
+        container: copyparty
 
 - AI:
     - OpenClaw:

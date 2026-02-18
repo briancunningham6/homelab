@@ -42,6 +42,24 @@ http://login.home {
 
 # --- Applications ---
 
+http://copyparty.home {
+    # Authenticate via Authentik forward-auth.
+    # Unauthenticated users are redirected to login.home.
+    # After auth, Caddy copies the user/group headers to Copyparty.
+    forward_auth authentik-server:9000 {
+        uri /outpost.goauthentik.io/auth/caddy
+        copy_headers X-authentik-username X-authentik-groups X-authentik-uid X-authentik-email X-authentik-name
+        trusted_proxies private_ranges
+    }
+
+    reverse_proxy copyparty:3923 {
+        header_up X-Real-IP {remote_host}
+        # Inject shared secret so Copyparty can verify headers aren't spoofed by clients.
+        # CP_SECRET must match the value in apps/copyparty/.env (idp-h-key in copyparty.conf).
+        header_up X-CP-Secret {env.CP_SECRET}
+    }
+}
+
 http://immich.home {
     reverse_proxy immich-server:2283 {
         header_up X-Real-IP {remote_host}
