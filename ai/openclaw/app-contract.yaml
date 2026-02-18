@@ -1,0 +1,86 @@
+# OpenClaw — App Contract
+# This file documents the operational contract for OpenClaw on the homelab platform.
+
+kind: app-contract
+metadata:
+  name: openclaw
+  version: "latest"
+  description: AI agent gateway — bridges chat apps to platform services
+
+spec:
+  runtime:
+    type: native                       # Runs on host, not in Docker
+    binary: openclaw                   # Installed via npm or curl
+    requires: "node >= 22"
+    daemon: launchd                    # macOS service manager
+    user: "{{ lookup('env', 'USER') }}"
+
+  network:
+    listen: "127.0.0.1:18789"         # Gateway bind address
+    protocol: http/ws                  # HTTP + WebSocket
+    caddyProxy: "openclaw.home"       # Caddy fronts the Control UI
+    tailscale:
+      mode: serve                      # Expose to tailnet via Tailscale Serve
+
+  channels:
+    - whatsapp                         # Primary — paired via QR code
+    # - telegram                       # Optional — bot token required
+
+  agents:
+    - id: brian
+      role: admin
+      sandbox: none
+      tools: all
+      workspace: "~/.openclaw/workspace-brian"
+    - id: family
+      role: user
+      sandbox: docker
+      tools: [exec, read, web_search, web_fetch, image]
+      workspace: "~/.openclaw/workspace-family"
+
+  skills:
+    - homelab-immich                   # Photo management via Immich API
+    - homelab-ops                      # Platform operations (scripts, Docker)
+    - homelab-status                   # Health monitoring and alerting
+
+  integrations:
+    uptimeKuma:
+      direction: inbound
+      method: webhook
+      endpoint: "/hooks/agent"
+      auth: bearer-token
+    immich:
+      direction: outbound
+      method: rest-api
+      endpoint: "http://immich.home/api"
+      auth: api-key
+    docker:
+      direction: outbound
+      method: cli
+      socket: "/var/run/docker.sock"
+
+  data:
+    configDir: "~/.openclaw"
+    persistent:
+      - sessions                       # Conversation history
+      - agents                         # Agent runtime state
+      - workspace-brian                # Admin workspace + memory
+      - workspace-family               # Family workspace + memory
+    backup:
+      include: ["sessions", "agents", "workspace-*"]
+      exclude: ["*.log", "cache"]
+
+  health:
+    endpoint: "http://127.0.0.1:18789/"
+    method: GET
+    expect: 200
+    interval: 30s
+
+  dependencies:
+    required:
+      - node >= 22
+    platform:
+      - caddy                          # Reverse proxy for *.home
+      - docker                         # For family agent sandbox
+    optional:
+      - tailscale                      # Remote access

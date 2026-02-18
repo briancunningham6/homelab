@@ -48,6 +48,15 @@ http://immich.home {
     }
 }
 
+# --- AI ---
+
+http://openclaw.home {
+    # OpenClaw runs natively on the host (not in Docker)
+    reverse_proxy 127.0.0.1:18789 {
+        header_up X-Real-IP {remote_host}
+    }
+}
+
 # --- Authentik Forward Auth (for apps that need SSO protection) ---
 # Uncomment and import in app blocks that need Authentik gating:
 #

@@ -1,0 +1,173 @@
+{
+  // OpenClaw Gateway Configuration — Homelab Platform
+  // Docs: https://docs.openclaw.ai/gateway/configuration
+  //
+  // This file is the source-of-truth template. On install, copy to:
+  //   ~/.openclaw/openclaw.json
+  //
+  // Secrets (API keys, tokens) go in environment variables, not here.
+  // See ai/openclaw/.env.example for the full list.
+
+  // ── Model ────────────────────────────────────────────────────────────────────
+  agent: {
+    model: "anthropic/claude-sonnet-4-5",
+  },
+
+  // ── Multi-Agent Routing ──────────────────────────────────────────────────────
+  // Two agents: admin (Brian, full access) and family (sandboxed, limited).
+  // Each gets isolated workspace, sessions, memory, and tool policy.
+  agents: {
+    list: [
+      {
+        id: "brian",
+        name: "Brian",
+        default: true,
+        workspace: "~/.openclaw/workspace-brian",
+        agentDir: "~/.openclaw/agents/brian/agent",
+        // Full access — no sandbox, all tools available
+      },
+      {
+        id: "family",
+        name: "Family",
+        workspace: "~/.openclaw/workspace-family",
+        agentDir: "~/.openclaw/agents/family/agent",
+        identity: { name: "Homelab Assistant" },
+        groupChat: {
+          mentionPatterns: ["@homelab", "@assistant", "@openclaw"],
+        },
+        sandbox: {
+          mode: "all",
+          scope: "agent",
+          workspaceAccess: "ro",
+          docker: {
+            image: "openclaw-sandbox:bookworm-slim",
+            network: "none",
+            user: "1000:1000",
+            memory: "512m",
+            cpus: 0.5,
+          },
+        },
+        tools: {
+          profile: "messaging",
+          allow: [
+            "exec",
+            "read",
+            "web_search",
+            "web_fetch",
+            "image",
+            "sessions_list",
+            "session_status",
+          ],
+          deny: [
+            "write",
+            "edit",
+            "apply_patch",
+            "browser",
+            "canvas",
+            "nodes",
+            "cron",
+            "gateway",
+          ],
+        },
+      },
+    ],
+  },
+
+  // ── Bindings — route inbound messages to agents ──────────────────────────────
+  // Peer IDs are placeholders — replace with real phone numbers / Telegram IDs.
+  bindings: [
+    // Admin: Brian's WhatsApp DMs go to the brian agent
+    {
+      agentId: "brian",
+      match: { channel: "whatsapp", peer: { kind: "direct", id: "+1BRIAN_PHONE" } },
+    },
+    // Family group chat → family agent (sandboxed)
+    {
+      agentId: "family",
+      match: { channel: "whatsapp", peer: { kind: "group", id: "FAMILY_GROUP_ID@g.us" } },
+    },
+    // All other WhatsApp DMs → family agent by default
+    {
+      agentId: "family",
+      match: { channel: "whatsapp" },
+    },
+    // If using Telegram: Brian's Telegram DMs → brian agent
+    // {
+    //   agentId: "brian",
+    //   match: { channel: "telegram", peer: { kind: "direct", id: "tg:BRIAN_TG_ID" } },
+    // },
+  ],
+
+  // ── Channels ─────────────────────────────────────────────────────────────────
+  channels: {
+    whatsapp: {
+      dmPolicy: "pairing",
+      // allowFrom: ["+1BRIAN_PHONE", "+1PARTNER_PHONE"],
+      groups: {
+        "*": { requireMention: true },
+      },
+    },
+    // telegram: {
+    //   botToken: "${TELEGRAM_BOT_TOKEN}",
+    //   dmPolicy: "pairing",
+    // },
+  },
+
+  // ── Gateway ──────────────────────────────────────────────────────────────────
+  gateway: {
+    bind: "loopback",
+    port: 18789,
+    // Tailscale Serve: expose Control UI to tailnet only (no public internet)
+    tailscale: {
+      mode: "serve",
+    },
+    auth: {
+      // Password auth for the Control UI — set OPENCLAW_GATEWAY_TOKEN in .env
+      mode: "token",
+    },
+  },
+
+  // ── Browser ──────────────────────────────────────────────────────────────────
+  browser: {
+    enabled: true,
+  },
+
+  // ── Web Tools ────────────────────────────────────────────────────────────────
+  tools: {
+    web: {
+      search: { enabled: true },
+      fetch: { enabled: true },
+    },
+    // No agent-to-agent messaging by default
+    agentToAgent: {
+      enabled: false,
+    },
+  },
+
+  // ── Webhooks (inbound from Uptime Kuma, etc.) ────────────────────────────────
+  hooks: {
+    enabled: true,
+    // Set OPENCLAW_HOOKS_TOKEN in .env
+    token: "${OPENCLAW_HOOKS_TOKEN}",
+    path: "/hooks",
+    defaultSessionKey: "hook:ingress",
+    allowRequestSessionKey: false,
+    allowedAgentIds: ["brian"],
+  },
+
+  // ── Cron ─────────────────────────────────────────────────────────────────────
+  cron: {
+    enabled: true,
+  },
+
+  // ── Skills ───────────────────────────────────────────────────────────────────
+  // Workspace skills (per agent) are loaded from <workspace>/skills/
+  // Shared skills are loaded from ~/.openclaw/skills/
+  // Extra dirs for homelab-specific skills:
+  skills: {
+    load: {
+      extraDirs: ["~/homelab/ai/openclaw/skills"],
+      watch: true,
+    },
+  },
+}

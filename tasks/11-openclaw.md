@@ -1,308 +1,212 @@
-# Task 11: OpenClaw — Early Agent Rollout
+# Task 11: OpenClaw — Deploy AI Agent Gateway
 
 ## Context
-Read `CLAUDE.md` for project conventions. Read `docs/agent-model.md` for the full OpenClaw design (lanes, isolation, identity integration, management contract, open questions). Read `docs/security.md` § 7 for agent security requirements. Read `docs/rollout-plan.md` Phase 4 for the task list this implements.
 
-**This task depends on Phases 1–3 being complete** — platform running, Authentik configured with family accounts, at least one app (Immich) deployed.
+Read `CLAUDE.md` for project conventions. Read `ai/openclaw/README.md` for the full deployment guide. Read `ai/openclaw/config/openclaw.json` for the Gateway configuration.
+
+**This task depends on Phases 1–3 being complete** — platform running, Authentik configured, at least one app (Immich) deployed.
+
+**Important:** OpenClaw is a **native Node.js Gateway process** running on the Mac mini host — NOT a Docker container. It bridges messaging apps (WhatsApp, Telegram) to AI agents (Anthropic Claude). Authentication is via channel identity (phone numbers), not Authentik SSO.
+
+- **Project:** https://openclaw.ai | https://github.com/openclaw/openclaw
+- **Docs:** https://docs.openclaw.ai
 
 ## Objective
-Deploy the OpenClaw agent runtime and configure per-user agent lanes so every family member has a working AI agent scoped to their identity and permissions. This is an early validation — the goal is to prove the model works, not to build the final system.
 
-## Output Files
+Install and configure the OpenClaw Gateway on the Mac mini with two agents:
+- **brian** — full admin access to all platform tools
+- **family** — sandboxed, read-only access for family members via group chat
+
+## Existing Files (already in repo)
+
+All config templates and skill files are drafted and ready to deploy:
 
 ```
 ai/openclaw/
-├── compose.yml
-├── .env
-├── .env.example
-├── app-contract.yaml
-├── data/                       # Created at runtime (gitignored)
-└── README.md
-
-docs/openclaw-eval-template.md  # Evaluation template for the family trial
+├── config/openclaw.json           # Gateway config — multi-agent routing, tools, hooks
+├── skills/
+│   ├── homelab-immich/SKILL.md    # Immich REST API skill
+│   ├── homelab-ops/SKILL.md       # Platform operations skill
+│   └── homelab-status/SKILL.md    # Health monitoring skill
+├── workspace-brian/
+│   ├── AGENTS.md                  # Admin agent persona
+│   └── SOUL.md                    # Admin agent personality
+├── workspace-family/
+│   ├── AGENTS.md                  # Family agent persona (sandboxed)
+│   └── SOUL.md                    # Family agent personality
+├── .env.example                   # Environment variable template
+├── app-contract.yaml              # Operational contract
+└── README.md                      # Deployment guide
 ```
+
+Platform files already updated:
+- `platform/caddy/Caddyfile` — `openclaw.home` proxies to `127.0.0.1:18789`
+- `platform/homepage/config/services.yaml` — OpenClaw entry (no Docker container ref)
 
 ## Requirements
 
-### Part 1: Runtime Selection & Deployment
+### Part 1: Install OpenClaw
 
-The agent runtime is an open question (see `docs/agent-model.md` § 7). The agent executing this task should evaluate options and pick one. Key criteria:
+```bash
+# Prerequisite: Node.js >= 22
+brew install node@22
+node --version  # Verify >= 22
 
-| Requirement | Why |
-|-------------|-----|
-| Multi-user support | Each family member gets their own session/workspace |
-| OIDC/SSO integration | Must authenticate via Authentik — no separate credentials |
-| Tool/function calling | Agents need to call platform scripts and app APIs |
-| Per-user isolation | Conversation context and memory must not leak between users |
-| Local LLM backend | Must connect to Ollama or similar for local inference |
-| Docker Compose deployment | Must follow platform conventions |
+# Install OpenClaw
+curl -fsSL https://get.openclaw.ai | sh
+# — or —
+npm install -g openclaw@latest
 
-**Strong candidates to evaluate:**
-- **Open WebUI** — mature, multi-user, OIDC support, tool calling, Ollama integration. May need custom tooling for lane enforcement.
-- **AnythingLLM** — workspace-based isolation, API tools, Docker support. Check SSO support.
-- **Custom lightweight agent** — if existing tools don't support lane enforcement natively, a thin orchestration layer may be needed on top of the LLM backend.
-
-**Decision process:**
-1. Check which candidates support OIDC login via Authentik
-2. Check which support per-user workspace isolation
-3. Check which support function/tool calling with scoped permissions
-4. Pick the best fit — document the decision and reasoning in the README
-5. If no single tool meets all requirements, deploy the closest match and document what needs custom work
-
-### compose.yml
-- Deploy the chosen runtime with a pinned version tag
-- Deploy Ollama as the local LLM backend (if not already deployed elsewhere)
-  - Image: `ollama/ollama` with pinned tag
-  - Mount `./data/ollama` to `/root/.ollama` for model storage
-  - Consider GPU passthrough notes for macOS (Metal is not available in Docker — document this limitation)
-- `restart: unless-stopped` on all containers
-- Join `caddy-net` external network
-- Internal network for runtime ↔ Ollama communication
-- Container names: `openclaw`, `openclaw-ollama` (or similar)
-
-### .env.example
-```
-# OpenClaw Configuration
-
-# Ollama
-OLLAMA_HOST=http://openclaw-ollama:11434
-
-# Authentik OIDC (configure after creating the provider in Authentik)
-OIDC_CLIENT_ID=
-OIDC_CLIENT_SECRET=
-OIDC_ISSUER_URL=http://login.home/application/o/openclaw/
-OIDC_REDIRECT_URI=http://openclaw.home/oauth/callback
-
-# Default model to pull on first start
-DEFAULT_MODEL=llama3.2:3b
-
-# Admin settings
-# ENABLE_SIGNUP=false  # Disable self-registration — users come from Authentik
+# Verify
+openclaw --version
 ```
 
-### app-contract.yaml
-```yaml
-name: openclaw
-version: 0.1.0
+### Part 2: Onboard & Pair WhatsApp
 
-auth:
-  mode: oidc
-  provider: authentik
-  groups:
-    admin: homelab-admin
-    user: parents
-    child: kids
-
-network:
-  hostname: openclaw.home
-  internalPort: 8080  # Adjust based on chosen runtime
-
-data:
-  paths:
-    - ./data/ollama
-    - ./data/runtime
-
-backup:
-  includes:
-    - data/runtime
-  excludes:
-    - data/ollama  # Models can be re-downloaded
-  rpoClass: daily
-  restoreTest: documented
-
-agentScopes:
-  user: [chat, read-apps, write-apps]
-  child: [chat, read-apps]
-  admin: [chat, read-apps, write-apps, platform-manage, configure]
-
-health:
-  endpoint: /health  # Adjust based on chosen runtime
+```bash
+# Interactive onboard — sets up API key, pairs WhatsApp via QR code
+openclaw onboard
 ```
 
-### README.md
-Follow the template from CLAUDE.md. Include:
+During onboard:
+1. Enter your Anthropic API key (or sign in with Claude Pro/Max)
+2. Scan the WhatsApp QR code with your phone
+3. Verify the test message arrives
 
-- What OpenClaw does (AI agent layer — every family member gets a personal agent scoped to their identity)
-- Runtime decision: which tool was chosen and why
-- Quick reference: image, version, internal port, hostname `openclaw.home`, health endpoint
-- Commands: start, stop, restart, update with rollback
-- **First-run setup:**
-  1. Start Ollama, pull default model (`docker exec openclaw-ollama ollama pull llama3.2:3b`)
-  2. Create Authentik OIDC provider for OpenClaw
-  3. Set OIDC env vars in `.env`
-  4. Start the runtime
-  5. Log in via `http://openclaw.home` with Authentik SSO
-  6. Verify per-user workspace isolation
-- **Authentik integration:**
-  - Create OAuth2/OpenID Provider in Authentik for OpenClaw
-  - Redirect URI: `http://openclaw.home/oauth/callback` (adjust per runtime)
-  - Create Application in Authentik, bind to provider
-  - Map groups: `homelab-admin` → admin role, `parents` → user role, `kids` → restricted role
-  - Disable self-registration — all users flow through Authentik
-- **Agent lanes — how they map:**
+### Part 3: Deploy Configuration
 
-  | Authentik Group | Agent Lane | Capabilities |
-  |-----------------|-----------|--------------|
-  | `homelab-admin` | Admin | Full platform management, all tools |
-  | `parents` | User | App interaction (Immich, etc.), no infra tools |
-  | `kids` | Child | Chat + read-only app access, content safety |
+```bash
+# Copy the repo config template to OpenClaw's config directory
+cp ~/homelab/ai/openclaw/config/openclaw.json ~/.openclaw/openclaw.json
 
-- **Tool registry** (initial set):
+# Create .env from template
+cp ~/homelab/ai/openclaw/.env.example ~/.openclaw/.env
+# Edit ~/.openclaw/.env with real values:
+#   ANTHROPIC_API_KEY=sk-ant-...
+#   IMMICH_API_KEY=...  (generate at http://immich.home → User Settings → API Keys)
+#   OPENCLAW_GATEWAY_TOKEN=...  (generate: openssl rand -hex 32)
+#   OPENCLAW_HOOKS_TOKEN=...  (generate: openssl rand -hex 32)
 
-  | Tool | Admin | User | Child | Description |
-  |------|-------|------|-------|-------------|
-  | `platform-up` | ✓ | — | — | Start all platform services |
-  | `platform-down` | ✓ | — | — | Stop all platform services |
-  | `app-up` | ✓ | — | — | Start an app |
-  | `app-down` | ✓ | — | — | Stop an app |
-  | `app-backup` | ✓ | — | — | Backup an app |
-  | `dr-verify` | ✓ | — | — | Run health check |
-  | `immich-browse` | ✓ | ✓ | ✓ | Browse photos |
-  | `immich-upload` | ✓ | ✓ | — | Upload photos |
-
-- **macOS / Docker limitation:** Ollama in Docker on macOS cannot access Metal GPU acceleration. Models run on CPU only. For better performance, Ollama can be installed natively (`brew install ollama`) and the runtime pointed at `host.docker.internal:11434`. Document both paths.
-- **Backup scope:** Runtime data (user workspaces, conversation history). Models excluded (re-downloadable).
-- Upstream links for chosen runtime
-
----
-
-### Part 2: Authentik Configuration Guide
-
-Document (in the README) the exact steps to create the OpenClaw OIDC provider in Authentik:
-
-1. Navigate to `http://login.home/if/admin/`
-2. Providers → Create → OAuth2/OpenID Provider
-3. Name: `OpenClaw`
-4. Authorization flow: default
-5. Client ID: auto-generated (copy to `.env`)
-6. Client Secret: auto-generated (copy to `.env`)
-7. Redirect URI: `http://openclaw.home/oauth/callback`
-8. Scopes: `openid`, `profile`, `email`
-9. Create Application → name `OpenClaw`, bind to provider
-10. Test: log in as each family member and verify correct group membership flows through
-
----
-
-### Part 3: Lane Enforcement
-
-Document (in the README or a separate `docs/openclaw-lanes.md` if it gets long) how lane enforcement works in the chosen runtime:
-
-**If the runtime supports role-based tool access natively:**
-- Map Authentik groups to runtime roles
-- Assign tool permissions per role
-- Document the mapping
-
-**If the runtime does NOT support role-based tool access natively:**
-- Document what's enforced by the runtime vs what needs manual discipline
-- Create a plan for adding enforcement (middleware, custom wrapper, etc.)
-- For the evaluation period, rely on Authentik group-gated access + audit logging as interim controls
-
----
-
-### Part 4: Caddy & Homepage Integration
-
-**Caddyfile entry** (add to `platform/caddy/Caddyfile`):
-```
-openclaw.home {
-    reverse_proxy openclaw:8080
-}
+# Copy agent workspace files
+cp -r ~/homelab/ai/openclaw/workspace-brian/ ~/.openclaw/workspace-brian/
+cp -r ~/homelab/ai/openclaw/workspace-family/ ~/.openclaw/workspace-family/
 ```
 
-**Homepage entry** (add to `platform/homepage/config/services.yaml`):
-```yaml
-- AI:
-    - OpenClaw:
-        href: http://openclaw.home
-        description: AI Agent
-        icon: openai  # or a custom icon
-        server: my-docker
-        container: openclaw
+### Part 4: Edit Config Placeholders
+
+Open `~/.openclaw/openclaw.json` and replace placeholder values:
+
+| Placeholder | Replace with |
+|-------------|-------------|
+| `+1BRIAN_PHONE` | Your WhatsApp phone number (E.164 format) |
+| `FAMILY_GROUP_ID@g.us` | Your family WhatsApp group ID |
+| `+1PARTNER_PHONE` | Partner's phone (in `channels.whatsapp.allowFrom`) |
+
+To find a WhatsApp group ID: send a message in the group after pairing, then check `openclaw logs` — the group peer ID appears in the log output.
+
+### Part 5: Install as launchd Daemon
+
+```bash
+# Install daemon — OpenClaw starts on boot, restarts on crash
+openclaw onboard --install-daemon
+
+# Verify it's running
+openclaw status
+curl -s http://127.0.0.1:18789/  # Should return the Control UI
 ```
 
----
+The Gateway runs as a `launchd` service at `~/Library/LaunchAgents/ai.openclaw.gateway.plist`.
 
-### Part 5: Evaluation Template
+### Part 6: Verify Caddy Proxy
 
-Create `docs/openclaw-eval-template.md`:
+After the Gateway is running, verify the Caddy proxy works:
 
-```markdown
-# OpenClaw Evaluation — [User Name]
+```bash
+# Reload Caddy with the updated Caddyfile
+docker exec caddy caddy reload --config /etc/caddy/Caddyfile
 
-> Family member feedback on the OpenClaw agent trial
-
-## Period
-Start: YYYY-MM-DD
-End: YYYY-MM-DD
-
-## User Profile
-- **Name:**
-- **Agent lane:** Admin / User / Child
-- **Primary use cases tested:**
-
-## What worked well
--
-
-## What didn't work / was frustrating
--
-
-## Feature requests
--
-
-## Trust level
-How comfortable are you letting the agent act on your behalf? (1–5)
-
-## Would you use this regularly? (yes / sometimes / no)
-
-## Other notes
--
+# Test
+curl -s -o /dev/null -w "%{http_code}" http://openclaw.home
+# Expected: 200 or 302
 ```
 
-Also create a summary template at the end of the eval period:
+### Part 7: Configure Uptime Kuma
 
-```markdown
-# OpenClaw Evaluation Summary
+Add a monitor in Uptime Kuma for the OpenClaw Gateway:
 
-> Aggregate results from family trial | Date: YYYY-MM-DD
+1. Open `http://status.home`
+2. Add new monitor:
+   - **Type:** HTTP(s)
+   - **URL:** `http://127.0.0.1:18789/`
+   - **Name:** OpenClaw Gateway
+   - **Interval:** 60s
 
-## Participants
-| Name | Lane | Used regularly? | Trust (1–5) | Top feedback |
-|------|------|----------------|-------------|-------------|
-| | | | | |
+Then configure the webhook notification (so OpenClaw gets alerted when services go down):
 
-## Decision
-- [ ] **Keep and invest** — OpenClaw adds clear value, proceed to deeper integration
-- [ ] **Iterate** — Promising but needs specific improvements before expanding
-- [ ] **Defer** — Not ready yet, revisit after [specific milestone]
+1. Settings → Notifications → Add
+2. **Type:** Webhook
+3. **URL:** `http://127.0.0.1:18789/hooks/agent`
+4. **Header:** `Authorization: Bearer <OPENCLAW_HOOKS_TOKEN>`
+5. **Body:** `{"msg": "🔴 {{monitorJSON.name}} is DOWN — {{msg}}", "sessionKey": "hook:uptime-kuma"}`
 
-## Key findings
--
+### Part 8: Test the Agents
 
-## Action items
--
+**Brian agent (WhatsApp DM):**
+```
+You: what containers are running?
+→ Agent should use `exec` tool to run `docker ps` and return results
+
+You: how much disk space is left?
+→ Agent should run `df -h /` and summarise
+
+You: search immich for beach photos
+→ Agent should use the homelab-immich skill to call the Immich API
+```
+
+**Family agent (WhatsApp group, mention @homelab):**
+```
+@homelab is everything running?
+→ Agent should report high-level status, no raw Docker output
+
+@homelab find photos from Christmas
+→ Agent should search Immich and describe results naturally
+```
+
+### Part 9: Set Up Cron Jobs
+
+Via the Control UI (`http://openclaw.home`) or by messaging the brian agent:
+
+```
+You: set up a daily cron at 7am — run a quick health check and tell me container status, disk usage, and any alerts. Keep it brief.
+
+You: set up a weekly cron on Sunday at 10am — give me a platform report: storage trends, any services that restarted this week, backup status.
 ```
 
 ---
 
 ## Constraints
-- **No cloud AI** — all inference runs locally via Ollama. No family data leaves the network.
-- **Authentik is the only identity source** — no separate user accounts in the agent runtime
-- **Ollama GPU limitation on macOS Docker** — document the CPU-only constraint and native install alternative
-- **This is a validation phase** — don't over-engineer. Get it working, get feedback, iterate.
-- **Lane enforcement may be partial** — document what's enforced technically vs what relies on trust during the trial
-- **Models are large** — a 3B parameter model is ~2GB. Budget disk space and note in README.
+
+- **Anthropic API key required** — obtain at console.anthropic.com or use Claude Pro/Max subscription ($20-200/mo). Never commit keys.
+- **Conversation content sent to Anthropic's API** — chat text leaves the network, but files and photos stay local. The homelab-immich skill queries the local Immich API; only text descriptions are sent to the LLM.
+- **No Authentik integration** — OpenClaw uses channel identity (phone numbers), not OIDC. This is fundamentally different from other platform apps.
+- **Native process, not Docker** — OpenClaw runs on the host via `launchd`. It accesses Docker via the socket to manage containers and run the family agent sandbox.
+- **WhatsApp pairing is per-device** — the Gateway links to one phone number. Multi-device is handled by WhatsApp's linked devices feature.
+- **Family sandbox uses Docker** — the `family` agent runs commands inside a sandboxed container (no network, read-only workspace, memory-limited). Docker must be running for this to work.
 
 ## Acceptance Criteria
-- [ ] `docker compose config` passes without errors
-- [ ] Ollama container starts and can pull a model
-- [ ] Runtime container starts and connects to Ollama
-- [ ] Authentik OIDC login works — each family member can sign in
-- [ ] Per-user session isolation verified (User A cannot see User B's conversations)
-- [ ] Admin agent can execute at least one platform script (`dr-verify` or `app-up`)
-- [ ] User agent can interact with Immich (browse photos via API)
-- [ ] Child agent has reduced capabilities vs user agent
-- [ ] `openclaw.home` resolves via Caddy
-- [ ] Service appears on Homepage dashboard
-- [ ] Uptime Kuma monitor added
-- [ ] README documents runtime decision, setup, lanes, tools, and limitations
-- [ ] Evaluation templates created for family trial
-- [ ] `docs/access-matrix.md` updated with OpenClaw lane mappings
+
+- [ ] `openclaw --version` runs successfully (Node.js >= 22, OpenClaw installed)
+- [ ] `openclaw status` shows the Gateway is running
+- [ ] `curl http://127.0.0.1:18789/` returns the Control UI
+- [ ] `curl http://openclaw.home` returns the Control UI (Caddy proxy working)
+- [ ] WhatsApp pairing complete — test message arrives
+- [ ] Brian agent responds to WhatsApp DM with platform commands (docker ps, df, etc.)
+- [ ] Brian agent can query Immich API via the homelab-immich skill
+- [ ] Family agent responds in group chat when mentioned
+- [ ] Family agent is sandboxed — cannot run destructive commands
+- [ ] Gateway survives reboot (launchd daemon installed)
+- [ ] Uptime Kuma monitor shows OpenClaw as UP
+- [ ] Webhook from Uptime Kuma triggers an OpenClaw session (test by pausing a monitor)
+- [ ] At least one cron job configured (morning health check)
+- [ ] Homepage dashboard shows OpenClaw entry
+- [ ] Skills loaded — verify via Control UI or `openclaw status`
