@@ -188,16 +188,13 @@ graph TB
 
 ## 4. Networking & Remote Access
 
-### Local access
-Stable local hostnames via Caddy:
-- `immich.home` — photo management
-- `login.home` — Authentik
-- `status.home` — Uptime Kuma
-- `ai.home` — Open WebUI
+See [docs/networking.md](docs/networking.md) for the full networking reference, including how `.home` hostnames work, remote access via Tailscale, Split DNS setup, and the client configuration options.
 
-### Remote access
-- Tailscale-only by default (MagicDNS preferred).
-- No router port forwarding unless explicitly approved and documented.
+### Summary
+- All services are accessed via `.home` hostnames routed by Caddy.
+- Remote access is via **Tailscale only** — no router port forwarding.
+- `.home` names require either a per-device `/etc/hosts` entry (pointing to the Mac mini's Tailscale IP) or Tailscale Split DNS (recommended for family devices).
+- Caddy binds to `0.0.0.0:80` and accepts connections on the Tailscale interface automatically.
 
 ### Port policy
 - Prefer internal Docker networks.
@@ -305,6 +302,7 @@ The architecture supports scaling beyond one Mac mini by adding specialised node
 
 | Document | Purpose |
 |----------|---------|
+| [docs/networking.md](docs/networking.md) | Networking & remote access — DNS, Tailscale, Split DNS, `.home` hostname routing |
 | [docs/control-panel.md](docs/control-panel.md) | Homelab Control Panel — unified admin management interface |
 | [docs/security.md](docs/security.md) | Security model — threat model, controls, accepted risks, agent security |
 | [docs/app-spec.md](docs/app-spec.md) | Developer application specification — how to build apps for this platform |

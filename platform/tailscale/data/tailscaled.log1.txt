@@ -1,0 +1,9 @@
+{"logtail":{"client_time":"2026-02-19T00:16:16.831153294Z","proc_id":3377167356,"proc_seq":92},"text":"control: RegisterReq: got response; nodeKeyExpired=false, machineAuthorized=false; authURL=false\n"}
+{"logtail":{"client_time":"2026-02-19T00:16:16.833903669Z","proc_id":3377167356,"proc_seq":93},"v":1,"text":"control: TryLogin: invalid key: API key does not exist\n"}
+{"logtail":{"client_time":"2026-02-19T00:16:16.836343586Z","proc_id":3377167356,"proc_seq":94},"v":1,"text":"control: sendStatus: authRoutine-report: loggedIn=false inMapPoll=false\n"}
+{"logtail":{"client_time":"2026-02-19T00:16:16.837694169Z","proc_id":3377167356,"proc_seq":95},"text":"health(warnable=login-state): error: You are logged out. The last login error was: invalid key: API key does not exist\n"}
+{"logtail":{"client_time":"2026-02-19T00:16:16.838435669Z","proc_id":3377167356,"proc_seq":96},"v":1,"text":"control: authRoutine: backoff: 13 msec\n"}
+{"logtail":{"client_time":"2026-02-19T00:16:16.839215002Z","proc_id":3377167356,"proc_seq":97},"text":"Received error: invalid key: API key does not exist\n"}
+{"logtail":{"client_time":"2026-02-19T00:16:16.843499794Z","proc_id":3377167356,"proc_seq":98},"text":"tailscaled got signal terminated; shutting down\n"}
+{"logtail":{"client_time":"2026-02-19T00:16:16.844395294Z","proc_id":3377167356,"proc_seq":99},"text":"control: client.Shutdown ...\n"}
+{"logtail":{"client_time":"2026-02-19T00:16:16.844859752Z","proc_id":3377167356,"proc_seq":100},"text":"control: updateRoutine: exiting\n"}
