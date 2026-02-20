@@ -1,0 +1,43 @@
+services:
+  jellyfin:
+    image: jellyfin/jellyfin:10.10.6
+    container_name: jellyfin
+    restart: unless-stopped
+    user: "${PUID:-1000}:${PGID:-1000}"
+    environment:
+      - TZ=${TZ:-UTC}
+      # Jellyfin published server URL (for client discovery)
+      - JELLYFIN_PublishedServerUrl=http://jellyfin.home
+    volumes:
+      # Jellyfin configuration and plugins
+      - ./data/config:/config
+      # Cache for metadata, images, etc.
+      - ./data/cache:/cache
+      # Media libraries - adjust paths to your media locations
+      # Movies
+      - ${MOVIES_PATH:-./media/movies}:/media/movies:ro
+      # TV Shows
+      - ${TV_PATH:-./media/tv}:/media/tv:ro
+      # Music
+      - ${MUSIC_PATH:-./media/music}:/media/music:ro
+      # Transcoding temporary directory (use fast storage)
+      - ./data/transcodes:/config/transcodes
+    extra_hosts:
+      # Required for Authentik SSO plugin
+      - "login.home:host-gateway"
+      - "jellyfin.home:host-gateway"
+    networks:
+      - caddy-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8096/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    # Note: Hardware transcoding (VideoToolbox) is not available in Docker on macOS.
+    # For hardware transcoding, install Jellyfin natively on macOS.
+    # Docker deployment uses software transcoding (CPU-based).
+
+networks:
+  caddy-net:
+    external: true

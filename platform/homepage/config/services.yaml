@@ -48,3 +48,9 @@
         icon: mdi-folder-multiple
         server: my-docker
         container: copyparty
+    - Jellyfin:
+        href: http://jellyfin.home
+        description: Media Streaming
+        icon: jellyfin
+        server: my-docker
+        container: jellyfin

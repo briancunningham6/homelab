@@ -79,6 +79,14 @@ http://immich.home, http://192.168.0.199, http://100.73.223.8 {
     }
 }
 
+http://jellyfin.home {
+    # Jellyfin handles its own authentication via SSO plugin
+    # No forward-auth needed — the plugin redirects to Authentik
+    reverse_proxy jellyfin:8096 {
+        header_up X-Real-IP {remote_host}
+    }
+}
+
 # --- AI ---
 
 http://openclaw.home {

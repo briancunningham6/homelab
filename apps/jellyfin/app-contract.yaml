@@ -1,0 +1,101 @@
+name: jellyfin
+version: 10.10.6
+description: Media streaming server — movies, TV shows, music, photos with multi-user support
+
+runtime:
+  image: jellyfin/jellyfin
+  version: 10.10.6
+
+auth:
+  mode: oidc-plugin
+  provider: authentik
+  mechanism: |
+    Jellyfin uses the SSO-Auth plugin for OIDC integration with Authentik.
+    The plugin handles authentication and can map Authentik groups to
+    Jellyfin roles (admin vs user).
+
+    Setup requires:
+    1. Running setup-authentik-jellyfin script
+    2. Installing SSO plugin in Jellyfin UI
+    3. Configuring plugin with OIDC credentials
+
+    Unlike forward-auth apps, users authenticate directly with Jellyfin
+    which redirects to Authentik for SSO.
+  groups:
+    admin: jellyfin-admin
+    user: jellyfin-user
+  note: |
+    Create a backup admin account before linking main admin to SSO.
+    Admin permissions may be overwritten during initial SSO link.
+
+network:
+  hostname: jellyfin.home
+  internalPort: 8096
+  additionalPorts:
+    - 8920  # HTTPS (if enabled)
+    - 7359  # UDP - client discovery
+    - 1900  # UDP - DLNA
+  external: false
+
+data:
+  paths:
+    - ./data/config    # Jellyfin configuration, plugins, users
+    - ./data/cache     # Metadata cache, images
+    - ./data/transcodes # Temporary transcoded files
+
+backup:
+  includes:
+    - data/config/     # Configuration, plugins, user data
+  excludes:
+    - data/cache/      # Regeneratable metadata cache
+    - data/transcodes/ # Temporary files
+  rpoClass: daily
+  restoreTest: documented
+  note: |
+    Media libraries are NOT backed up by Jellyfin backup.
+    Media files should have their own backup strategy.
+
+health:
+  endpoint: /health
+  port: 8096
+
+dependencies:
+  - name: caddy
+    reason: Reverse proxy
+  - name: authentik
+    reason: SSO authentication (via plugin)
+
+media:
+  note: |
+    Media libraries are mounted read-only from host paths.
+    Configure paths in .env:
+    - MOVIES_PATH: Path to movies
+    - TV_PATH: Path to TV shows
+    - MUSIC_PATH: Path to music
+
+    Media organization:
+    - Movies: /Movies/MovieName (Year)/MovieName (Year).mkv
+    - TV: /TV/ShowName/Season 01/ShowName - S01E01 - Title.mkv
+    - Music: /Music/Artist/Album/01 - Track.flac
+
+transcoding:
+  hardware: false
+  note: |
+    Docker on macOS cannot access VideoToolbox (hardware transcoding).
+    This deployment uses software transcoding (CPU-based).
+
+    Options for hardware transcoding:
+    1. Install Jellyfin natively on macOS
+    2. Use direct play (no transcoding needed)
+    3. Accept software transcoding performance
+
+    Most modern clients (Apple TV, Fire Stick 4K, smart TVs)
+    can direct play common formats without transcoding.
+
+clients:
+  - Web browser (built-in)
+  - Jellyfin iOS/Android apps
+  - Apple TV app
+  - Fire TV / Android TV app
+  - Kodi plugin
+  - Desktop apps (Windows, macOS, Linux)
