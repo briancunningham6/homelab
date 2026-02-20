@@ -1,0 +1,274 @@
+#!/usr/bin/env bash
+# migrate-immich-to-shared-postgres — Migrate Immich from dedicated DB to shared PostgreSQL
+#
+# Prerequisites:
+#   1. Shared PostgreSQL running and healthy (run scripts/setup-shared-postgres first)
+#   2. Immich database created in shared PostgreSQL (via init script)
+#   3. Immich currently running with immich-db
+#
+# What this script does:
+#   1. Verifies prerequisites
+#   2. Stops Immich
+#   3. Exports data from immich-db
+#   4. Imports data into shared PostgreSQL
+#   5. Updates apps/immich/compose.yml
+#   6. Starts Immich with shared PostgreSQL
+#   7. Verifies the migration
+#
+# Rollback:
+#   The script creates a backup of compose.yml before modifying.
+#   If migration fails, restore with:
+#     cp apps/immich/compose.yml.backup apps/immich/compose.yml
+#     docker compose -f apps/immich/compose.yml up -d
+#
+# Usage:
+#   HOMELAB_DIR=~/dev/homelab scripts/migrate-immich-to-shared-postgres
+
+set -euo pipefail
+
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+BOLD='\033[1m'
+NC='\033[0m'
+
+HOMELAB_DIR="${HOMELAB_DIR:-$HOME/homelab}"
+IMMICH_DIR="$HOMELAB_DIR/apps/immich"
+POSTGRES_DIR="$HOMELAB_DIR/platform/postgres"
+BACKUP_FILE="/tmp/immich-migration-$(date +%Y%m%d-%H%M%S).sql"
+
+info()  { echo -e "${GREEN}✓${NC} $*"; }
+warn()  { echo -e "${YELLOW}⚠${NC} $*"; }
+err()   { echo -e "${RED}✗${NC} $*"; exit 1; }
+step()  { echo -e "\n${BOLD}── $* ──${NC}"; }
+
+# ── Verify prerequisites ──────────────────────────────────────────────────────
+
+step "Verifying prerequisites"
+
+# Check directories exist
+[ -d "$IMMICH_DIR" ] || err "apps/immich/ not found"
+[ -d "$POSTGRES_DIR" ] || err "platform/postgres/ not found"
+[ -f "$IMMICH_DIR/.env" ] || err "apps/immich/.env not found"
+
+# Check shared PostgreSQL is running and healthy
+if ! docker ps --format '{{.Names}}' | grep -q '^postgres$'; then
+  err "Shared PostgreSQL container is not running.
+  Run: scripts/setup-shared-postgres"
+fi
+
+if ! docker inspect postgres --format='{{.State.Health.Status}}' | grep -q "healthy"; then
+  err "Shared PostgreSQL is not healthy. Check: docker logs postgres"
+fi
+info "Shared PostgreSQL is running and healthy"
+
+# Check immich database exists in shared PostgreSQL
+if ! docker exec postgres psql -U postgres -lqt | cut -d \| -f 1 | grep -qw immich; then
+  err "Database 'immich' does not exist in shared PostgreSQL.
+  Run the init script: docker exec -i postgres psql -U postgres < platform/postgres/init/01-immich.sql"
+fi
+info "Database 'immich' exists in shared PostgreSQL"
+
+# Check immich-db is running (source of migration)
+if ! docker ps --format '{{.Names}}' | grep -q '^immich-db$'; then
+  err "immich-db container is not running. Start Immich first to migrate its data."
+fi
+info "immich-db is running (source)"
+
+# Get DB credentials from Immich .env
+source "$IMMICH_DIR/.env"
+[ -n "${DB_PASSWORD:-}" ] || err "DB_PASSWORD not set in apps/immich/.env"
+[ -n "${DB_USERNAME:-}" ] || DB_USERNAME="immich"
+[ -n "${DB_DATABASE_NAME:-}" ] || DB_DATABASE_NAME="immich"
+info "Immich credentials loaded"
+
+# ── Confirm migration ─────────────────────────────────────────────────────────
+
+echo ""
+echo -e "${YELLOW}This will:${NC}"
+echo "  1. Stop Immich (brief downtime)"
+echo "  2. Export data from immich-db to $BACKUP_FILE"
+echo "  3. Import data into shared PostgreSQL"
+echo "  4. Modify apps/immich/compose.yml (backup created)"
+echo "  5. Start Immich with shared PostgreSQL"
+echo ""
+read -p "Proceed with migration? (y/N) " -n 1 -r
+echo
+if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+  echo "Migration cancelled."
+  exit 0
+fi
+
+# ── Stop Immich ───────────────────────────────────────────────────────────────
+
+step "Stopping Immich"
+cd "$HOMELAB_DIR"
+docker compose -f apps/immich/compose.yml stop immich-server immich-machine-learning
+info "Immich services stopped (database still running for export)"
+
+# ── Export data ───────────────────────────────────────────────────────────────
+
+step "Exporting data from immich-db"
+docker exec immich-db pg_dump -U "$DB_USERNAME" "$DB_DATABASE_NAME" > "$BACKUP_FILE"
+BACKUP_SIZE=$(du -h "$BACKUP_FILE" | cut -f1)
+info "Exported to $BACKUP_FILE ($BACKUP_SIZE)"
+
+# ── Clear target database ─────────────────────────────────────────────────────
+
+step "Preparing target database"
+# Drop and recreate to ensure clean state
+docker exec postgres psql -U postgres -c "DROP DATABASE IF EXISTS immich;"
+docker exec postgres psql -U postgres -c "CREATE DATABASE immich OWNER $DB_USERNAME;"
+docker exec postgres psql -U postgres -d immich -c "CREATE EXTENSION IF NOT EXISTS vectors;"
+info "Target database prepared"
+
+# ── Import data ───────────────────────────────────────────────────────────────
+
+step "Importing data into shared PostgreSQL"
+docker exec -i postgres psql -U "$DB_USERNAME" -d "$DB_DATABASE_NAME" < "$BACKUP_FILE"
+info "Data imported"
+
+# ── Verify import ─────────────────────────────────────────────────────────────
+
+step "Verifying import"
+TABLE_COUNT=$(docker exec postgres psql -U "$DB_USERNAME" -d "$DB_DATABASE_NAME" -t -c \
+  "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public';")
+info "Tables in shared PostgreSQL: $TABLE_COUNT"
+
+# ── Update compose.yml ────────────────────────────────────────────────────────
+
+step "Updating apps/immich/compose.yml"
+
+# Backup original
+cp "$IMMICH_DIR/compose.yml" "$IMMICH_DIR/compose.yml.backup"
+info "Backup created: compose.yml.backup"
+
+# Read current compose.yml
+COMPOSE_FILE="$IMMICH_DIR/compose.yml"
+
+# Create the new compose.yml
+cat > "$COMPOSE_FILE" << 'COMPOSE_EOF'
+services:
+  immich-server:
+    image: ghcr.io/immich-app/immich-server:${IMMICH_VERSION:-v2.5.6}
+    container_name: immich-server
+    restart: unless-stopped
+    volumes:
+      - ${UPLOAD_LOCATION:-./data/upload}:/usr/src/app/upload
+    environment:
+      DB_HOSTNAME: postgres
+      DB_PORT: 5432
+      DB_DATABASE_NAME: ${DB_DATABASE_NAME:-immich}
+      DB_USERNAME: ${DB_USERNAME:-immich}
+      DB_PASSWORD: ${DB_PASSWORD}
+      REDIS_HOSTNAME: immich-redis
+      UPLOAD_LOCATION: ${UPLOAD_LOCATION:-./data/upload}
+      IMMICH_VERSION: ${IMMICH_VERSION:-v2.5.6}
+    extra_hosts:
+      - "login.home:host-gateway"
+      - "immich.home:host-gateway"
+    depends_on:
+      immich-redis:
+        condition: service_healthy
+    networks:
+      - immich-internal
+      - caddy-net
+      - postgres-net
+
+  immich-machine-learning:
+    image: ghcr.io/immich-app/immich-machine-learning:${IMMICH_VERSION:-v2.5.6}
+    container_name: immich-ml
+    restart: unless-stopped
+    volumes:
+      - ./data/model-cache:/cache
+    networks:
+      - immich-internal
+
+  immich-redis:
+    image: docker.io/library/redis:7-alpine
+    container_name: immich-redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - immich-internal
+
+networks:
+  immich-internal:
+    name: immich-internal
+    driver: bridge
+    internal: true
+  caddy-net:
+    external: true
+  postgres-net:
+    external: true
+COMPOSE_EOF
+
+info "compose.yml updated (immich-db removed, postgres-net added)"
+
+# ── Stop old database ─────────────────────────────────────────────────────────
+
+step "Stopping old immich-db"
+docker stop immich-db || true
+docker rm immich-db || true
+info "Old immich-db stopped and removed"
+
+# ── Start Immich with new config ──────────────────────────────────────────────
+
+step "Starting Immich with shared PostgreSQL"
+docker compose -f apps/immich/compose.yml up -d
+
+# Wait for healthy
+echo "Waiting for Immich to start..."
+sleep 10
+
+# Check if running
+if docker ps --format '{{.Names}}' | grep -q '^immich-server$'; then
+  info "Immich server is running"
+else
+  err "Immich server failed to start. Check logs:
+  docker compose -f apps/immich/compose.yml logs immich-server"
+fi
+
+# ── Verify migration ─────────────────────────────────────────────────────────
+
+step "Verifying migration"
+
+# Check Immich can connect to database
+sleep 5
+if docker logs immich-server 2>&1 | tail -20 | grep -qi "error\|failed\|exception"; then
+  warn "Possible errors in Immich logs. Check: docker logs immich-server"
+else
+  info "No obvious errors in recent logs"
+fi
+
+# ── Output ────────────────────────────────────────────────────────────────────
+
+echo ""
+echo -e "${BOLD}╔══════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${BOLD}║           Immich Migration Complete                           ║${NC}"
+echo -e "${BOLD}╚══════════════════════════════════════════════════════════════╝${NC}"
+echo ""
+echo -e "${BOLD}Summary:${NC}"
+echo "  - Data exported to: $BACKUP_FILE"
+echo "  - Original compose.yml backed up to: compose.yml.backup"
+echo "  - Immich now uses shared PostgreSQL (postgres-net)"
+echo ""
+echo -e "${BOLD}Verify in browser:${NC}"
+echo "  http://immich.home"
+echo ""
+echo -e "${BOLD}Check logs:${NC}"
+echo "  docker compose -f apps/immich/compose.yml logs -f immich-server"
+echo ""
+echo -e "${YELLOW}Rollback (if needed):${NC}"
+echo "  cp apps/immich/compose.yml.backup apps/immich/compose.yml"
+echo "  docker compose -f apps/immich/compose.yml up -d"
+echo ""
+echo -e "${YELLOW}Cleanup (after confirming migration works):${NC}"
+echo "  rm $BACKUP_FILE"
+echo "  rm apps/immich/compose.yml.backup"
+echo "  rm -rf apps/immich/data/postgres  # old database data"
+echo ""

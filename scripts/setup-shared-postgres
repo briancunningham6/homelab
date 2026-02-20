@@ -1,0 +1,187 @@
+#!/usr/bin/env bash
+# setup-shared-postgres — Initialize shared PostgreSQL and prepare for app migrations
+#
+# What this script does:
+#   1. Generates admin password if not set
+#   2. Reads app passwords from their .env files
+#   3. Injects passwords into init/*.sql scripts
+#   4. Starts the shared PostgreSQL container
+#   5. Prints migration instructions for each app
+#
+# Usage:
+#   HOMELAB_DIR=~/dev/homelab scripts/setup-shared-postgres
+
+set -euo pipefail
+
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+BOLD='\033[1m'
+NC='\033[0m'
+
+HOMELAB_DIR="${HOMELAB_DIR:-$HOME/homelab}"
+POSTGRES_DIR="$HOMELAB_DIR/platform/postgres"
+
+info()  { echo -e "${GREEN}✓${NC} $*"; }
+warn()  { echo -e "${YELLOW}⚠${NC} $*"; }
+err()   { echo -e "${RED}✗${NC} $*"; exit 1; }
+step()  { echo -e "\n${BOLD}── $* ──${NC}"; }
+
+# ── Check prerequisites ───────────────────────────────────────────────────────
+
+step "Checking prerequisites"
+
+if [ ! -d "$POSTGRES_DIR" ]; then
+  err "platform/postgres/ does not exist. Run from homelab root."
+fi
+
+if [ ! -f "$POSTGRES_DIR/.env.example" ]; then
+  err "platform/postgres/.env.example not found."
+fi
+
+info "Prerequisites OK"
+
+# ── Setup .env ────────────────────────────────────────────────────────────────
+
+step "Setting up platform/postgres/.env"
+
+if [ ! -f "$POSTGRES_DIR/.env" ]; then
+  cp "$POSTGRES_DIR/.env.example" "$POSTGRES_DIR/.env"
+  info "Created .env from .env.example"
+fi
+
+# Check if admin password is set
+source "$POSTGRES_DIR/.env"
+if [ -z "${POSTGRES_ADMIN_PASSWORD:-}" ]; then
+  ADMIN_PASS=$(openssl rand -hex 32)
+  echo "POSTGRES_ADMIN_PASSWORD=$ADMIN_PASS" >> "$POSTGRES_DIR/.env"
+  info "Generated admin password"
+else
+  info "Admin password already set"
+fi
+
+# ── Inject app passwords into init scripts ────────────────────────────────────
+
+step "Configuring per-app databases"
+
+# Immich
+IMMICH_ENV="$HOMELAB_DIR/apps/immich/.env"
+if [ -f "$IMMICH_ENV" ]; then
+  source "$IMMICH_ENV"
+  if [ -n "${DB_PASSWORD:-}" ]; then
+    INIT_FILE="$POSTGRES_DIR/init/01-immich.sql"
+    if [ -f "$INIT_FILE" ]; then
+      if grep -q "CHANGEME_IMMICH_DB_PASSWORD" "$INIT_FILE"; then
+        # Use perl for safe substitution (handles special chars)
+        perl -i -pe "s/CHANGEME_IMMICH_DB_PASSWORD/\Q${DB_PASSWORD}\E/" "$INIT_FILE"
+        info "Injected Immich DB password into init script"
+      else
+        warn "Immich init script already configured (no CHANGEME placeholder found)"
+      fi
+    else
+      warn "Immich init script not found: $INIT_FILE"
+    fi
+  else
+    warn "DB_PASSWORD not set in apps/immich/.env"
+  fi
+else
+  warn "apps/immich/.env not found — skipping Immich database setup"
+fi
+
+# Add more apps here as they're added to the platform
+# Matrix example (for when it's deployed):
+# MATRIX_ENV="$HOMELAB_DIR/apps/matrix/.env"
+# if [ -f "$MATRIX_ENV" ]; then
+#   ...
+# fi
+
+# ── Check if PostgreSQL data exists ───────────────────────────────────────────
+
+step "Checking PostgreSQL state"
+
+if [ -d "$POSTGRES_DIR/data" ] && [ "$(ls -A "$POSTGRES_DIR/data" 2>/dev/null)" ]; then
+  warn "PostgreSQL data directory already exists"
+  warn "Init scripts only run on first start (empty data directory)"
+  warn "If you need to add a database, run the SQL manually:"
+  echo ""
+  echo "  docker exec -i postgres psql -U postgres < platform/postgres/init/01-immich.sql"
+  echo ""
+  NEEDS_MANUAL_INIT=true
+else
+  info "Data directory is empty — init scripts will run on first start"
+  NEEDS_MANUAL_INIT=false
+fi
+
+# ── Start PostgreSQL ──────────────────────────────────────────────────────────
+
+step "Starting shared PostgreSQL"
+
+cd "$HOMELAB_DIR"
+docker compose -f platform/postgres/compose.yml up -d
+
+# Wait for healthy
+echo "Waiting for PostgreSQL to be healthy..."
+for i in {1..30}; do
+  if docker compose -f platform/postgres/compose.yml ps | grep -q "(healthy)"; then
+    info "PostgreSQL is healthy"
+    break
+  fi
+  if [ $i -eq 30 ]; then
+    err "PostgreSQL did not become healthy within 30 seconds. Check logs:
+    docker compose -f platform/postgres/compose.yml logs"
+  fi
+  sleep 1
+done
+
+# ── Verify databases ─────────────────────────────────────────────────────────
+
+step "Verifying databases"
+
+DATABASES=$(docker exec postgres psql -U postgres -t -c "SELECT datname FROM pg_database WHERE datistemplate = false;")
+echo "Databases found:"
+echo "$DATABASES" | while read -r db; do
+  [ -n "$db" ] && echo "  - $db"
+done
+
+if echo "$DATABASES" | grep -q "immich"; then
+  info "Immich database exists"
+else
+  if [ "$NEEDS_MANUAL_INIT" = true ]; then
+    warn "Immich database not found — run init script manually"
+  else
+    warn "Immich database not found — check init script execution"
+  fi
+fi
+
+# ── Output next steps ─────────────────────────────────────────────────────────
+
+echo ""
+echo -e "${BOLD}╔══════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${BOLD}║           Shared PostgreSQL Setup Complete                    ║${NC}"
+echo -e "${BOLD}╚══════════════════════════════════════════════════════════════╝${NC}"
+echo ""
+echo -e "${BOLD}Container status:${NC}"
+docker compose -f platform/postgres/compose.yml ps
+echo ""
+echo -e "${BOLD}To migrate Immich to shared PostgreSQL:${NC}"
+echo ""
+echo -e "  ${YELLOW}# 1. Stop Immich${NC}"
+echo -e "  docker compose -f apps/immich/compose.yml down"
+echo ""
+echo -e "  ${YELLOW}# 2. Export data from old database${NC}"
+echo -e "  docker exec immich-db pg_dump -U immich immich > /tmp/immich-backup.sql"
+echo ""
+echo -e "  ${YELLOW}# 3. Import into shared PostgreSQL${NC}"
+echo -e "  docker exec -i postgres psql -U immich -d immich < /tmp/immich-backup.sql"
+echo ""
+echo -e "  ${YELLOW}# 4. Update apps/immich/compose.yml:${NC}"
+echo -e "     - Remove immich-db service"
+echo -e "     - Add postgres-net to immich-server networks"
+echo -e "     - Change DB_HOSTNAME to 'postgres'"
+echo ""
+echo -e "  ${YELLOW}# 5. Start Immich${NC}"
+echo -e "  docker compose -f apps/immich/compose.yml up -d"
+echo ""
+echo -e "${YELLOW}Or run the migration script:${NC}"
+echo -e "  scripts/migrate-immich-to-shared-postgres"
+echo ""

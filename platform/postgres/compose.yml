@@ -1,0 +1,50 @@
+# Shared PostgreSQL — Platform Database Service
+#
+# Single PostgreSQL instance with pgvecto-rs extensions for all apps.
+# Each app gets its own DATABASE within this instance (not separate containers).
+#
+# Image: tensorchord/pgvecto-rs:pg16-v0.2.0
+#   - PostgreSQL 16 with vector extensions (pgvector, pgvecto.rs)
+#   - Required for Immich face recognition and semantic search
+#   - Standard SQL apps work normally (extensions are available but not required)
+#
+# Network: postgres-net (internal)
+#   - Apps that need database access join this network
+#   - Not exposed to caddy-net (no HTTP interface)
+#
+# Per-app databases:
+#   - Create with: CREATE DATABASE <appname>;
+#   - Each app has its own user: CREATE USER <appname> WITH PASSWORD '...';
+#   - Grant: GRANT ALL PRIVILEGES ON DATABASE <appname> TO <appname>;
+#   - Apps connect to: postgres:5432/<appname>
+#
+# Backup:
+#   - Single pg_dumpall captures all databases
+#   - Or per-app: pg_dump -d <appname>
+
+services:
+  postgres:
+    image: docker.io/tensorchord/pgvecto-rs:pg16-v0.2.0
+    container_name: postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_ADMIN_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD}
+      POSTGRES_DB: postgres
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C --data-checksums"
+    volumes:
+      - ./data:/var/lib/postgresql/data
+      - ./init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_ADMIN_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - postgres-net
+
+networks:
+  postgres-net:
+    name: postgres-net
+    driver: bridge
