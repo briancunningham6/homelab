@@ -1,0 +1,52 @@
+services:
+  backrest:
+    image: ghcr.io/garethgeorge/backrest:v1.11.2
+    container_name: backrest
+    restart: unless-stopped
+    hostname: backrest
+    environment:
+      # Listen on all interfaces (Caddy handles external access)
+      BACKREST_PORT: "0.0.0.0:9898"
+      # Config and data paths inside container
+      BACKREST_CONFIG: /config/config.json
+      BACKREST_DATA: /data
+      # Timezone for accurate scheduling
+      TZ: ${TZ:-UTC}
+    volumes:
+      # Backrest configuration
+      - ./config:/config
+      # Backrest data (operation history, logs)
+      - ./data:/data
+      # SSH keys for SFTP access to backup Pi
+      - ~/.ssh:/root/.ssh:ro
+      # Access to homelab data directories for backup
+      # Platform services
+      - ../../platform/authentik/data:/sources/platform/authentik/data:ro
+      - ../../platform/postgres/data:/sources/platform/postgres/data:ro
+      - ../../platform/caddy/data:/sources/platform/caddy/data:ro
+      - ../../platform/caddy/Caddyfile:/sources/platform/caddy/Caddyfile:ro
+      - ../../platform/uptime-kuma/data:/sources/platform/uptime-kuma/data:ro
+      - ../../platform/homepage/config:/sources/platform/homepage/config:ro
+      - ../../platform/dockge/data:/sources/platform/dockge/data:ro
+      # Application data
+      - ../../apps/immich/data:/sources/apps/immich/data:ro
+      - ../../apps/copyparty/data:/sources/apps/copyparty/data:ro
+      - ../../apps/matrix/data:/sources/apps/matrix/data:ro
+      # Manifests (compose files, docs, scripts)
+      - ../..:/sources/manifests:ro
+    extra_hosts:
+      # Required for Authentik forward-auth
+      - "login.home:host-gateway"
+      - "backup.home:host-gateway"
+    networks:
+      - caddy-net
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9898"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+networks:
+  caddy-net:
+    external: true

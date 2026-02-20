@@ -1,0 +1,178 @@
+# Backup Configuration — Defines what to backup and in what order
+#
+# This file is read by the backup orchestration script to determine:
+# - Which services to backup
+# - What paths to include/exclude
+# - The order of operations (critical services first)
+# - Pre/post backup hooks (like database dumps)
+
+# Recovery order: Services are restored in this order during DR
+# Backup order: Services are backed up in reverse order (apps first, platform last)
+# This ensures the most recent app data is captured before platform state
+
+services:
+  # ══════════════════════════════════════════════════════════════════════════
+  # TIER 1: Identity Plane (restore first during DR)
+  # ══════════════════════════════════════════════════════════════════════════
+
+  - name: authentik
+    path: platform/authentik
+    tier: 1
+    description: "Identity provider - SSO for all services"
+    backup:
+      include:
+        - data/
+      exclude:
+        - data/redis/          # Cache, regenerated
+      pre_backup:
+        # Dump PostgreSQL before backup for consistency
+        - docker exec authentik-db pg_dump -U authentik authentik > ${APP_DIR}/data/authentik-db-dump.sql
+      post_backup:
+        - rm -f ${APP_DIR}/data/authentik-db-dump.sql
+    critical: true
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # TIER 2: Platform Infrastructure (restore second)
+  # ══════════════════════════════════════════════════════════════════════════
+
+  - name: postgres
+    path: platform/postgres
+    tier: 2
+    description: "Shared PostgreSQL for all apps"
+    backup:
+      include:
+        - data/
+      pre_backup:
+        # Dump all databases for point-in-time consistency
+        - docker exec postgres pg_dumpall -U postgres > ${APP_DIR}/data/postgres-dump.sql
+      post_backup:
+        - rm -f ${APP_DIR}/data/postgres-dump.sql
+    critical: true
+
+  - name: caddy
+    path: platform/caddy
+    tier: 2
+    description: "Reverse proxy and TLS certificates"
+    backup:
+      include:
+        - data/
+        - Caddyfile
+    critical: true
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # TIER 3: Platform Services (monitoring, dashboard)
+  # ══════════════════════════════════════════════════════════════════════════
+
+  - name: uptime-kuma
+    path: platform/uptime-kuma
+    tier: 3
+    description: "Health monitoring"
+    backup:
+      include:
+        - data/
+      exclude:
+        - "data/*.db-shm"      # SQLite temp files
+        - "data/*.db-wal"
+
+  - name: homepage
+    path: platform/homepage
+    tier: 3
+    description: "Dashboard"
+    backup:
+      include:
+        - config/
+      exclude:
+        - config/logs/
+
+  - name: dockge
+    path: platform/dockge
+    tier: 3
+    description: "Stack management UI"
+    backup:
+      include:
+        - data/
+      exclude:
+        - "data/*.db-shm"
+        - "data/*.db-wal"
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # TIER 4: Applications (user data - largest, restore last)
+  # ══════════════════════════════════════════════════════════════════════════
+
+  - name: immich
+    path: apps/immich
+    tier: 4
+    description: "Photo and video library"
+    backup:
+      include:
+        - data/upload/         # Photos and videos (large)
+      exclude:
+        - data/model-cache/    # ML models, re-downloaded
+        - data/postgres/       # Now in shared postgres
+    # Note: Database is in shared postgres, backed up separately
+    large_data: true
+
+  - name: copyparty
+    path: apps/copyparty
+    tier: 4
+    description: "File sharing"
+    backup:
+      include:
+        - data/library/        # User files
+      exclude:
+        - data/db/             # Index cache, regenerated
+
+  - name: matrix
+    path: apps/matrix
+    tier: 4
+    description: "Chat server"
+    backup:
+      include:
+        - data/
+      exclude:
+        - data/media_store/cache/
+      pre_backup:
+        # Dump Matrix database
+        - docker exec matrix-db pg_dump -U synapse synapse > ${APP_DIR}/data/matrix-db-dump.sql
+      post_backup:
+        - rm -f ${APP_DIR}/data/matrix-db-dump.sql
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # TIER 5: AI Services (optional, can be rebuilt)
+  # ══════════════════════════════════════════════════════════════════════════
+
+  - name: openclaw
+    path: ai/openclaw
+    tier: 5
+    description: "AI agent gateway"
+    backup:
+      include:
+        - data/sessions/       # Conversation history
+        - data/agents/         # Agent configurations
+        - data/workspace-*/    # Agent workspaces
+      exclude:
+        - "data/*.log"
+        - data/cache/
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Global Configuration
+# ══════════════════════════════════════════════════════════════════════════════
+
+global:
+  # Always backup these files from repo root
+  manifests:
+    - "*/*/compose.yml"
+    - "*/*/.env"               # Encrypted in backup
+    - "DESIGN.md"
+    - "docs/**/*.md"
+    - "scripts/*"
+
+  # Never backup these patterns (global excludes)
+  exclude:
+    - "**/.git"
+    - "**/__pycache__"
+    - "**/*.pyc"
+    - "**/node_modules"
+    - "**/*.log"
+    - "**/*.tmp"
+    - "**/lost+found"

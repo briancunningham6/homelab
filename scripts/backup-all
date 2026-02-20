@@ -1,0 +1,459 @@
+#!/usr/bin/env bash
+# backup-all — Full platform backup with Restic
+#
+# Backs up all homelab services to the configured Restic repository.
+# Follows the tiered approach: apps first, then platform, then manifests.
+# This ensures the most recent user data is captured first.
+#
+# Usage:
+#   backup-all                    # Full backup
+#   backup-all --dry-run          # Show what would be backed up
+#   backup-all --service immich   # Backup single service
+#   backup-all --manifests-only   # Backup only repo manifests
+#
+# Prerequisites:
+#   - Restic installed: brew install restic
+#   - platform/backup/.env configured with RESTIC_REPOSITORY and RESTIC_PASSWORD
+#   - Repository initialized: restic init (run once)
+
+set -euo pipefail
+
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+BLUE='\033[0;34m'
+BOLD='\033[1m'
+NC='\033[0m'
+
+HOMELAB_DIR="${HOMELAB_DIR:-$HOME/homelab}"
+BACKUP_ENV="$HOMELAB_DIR/platform/backup/.env"
+BACKUP_CONFIG="$HOMELAB_DIR/platform/backup/backup-config.yaml"
+LOG_DIR="$HOMELAB_DIR/platform/backup/logs"
+TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+LOG_FILE="$LOG_DIR/backup-$TIMESTAMP.log"
+
+# ── Helpers ──────────────────────────────────────────────────────────────────
+
+info()  { echo -e "${GREEN}✓${NC} $*" | tee -a "$LOG_FILE"; }
+warn()  { echo -e "${YELLOW}⚠${NC} $*" | tee -a "$LOG_FILE"; }
+error() { echo -e "${RED}✗${NC} $*" | tee -a "$LOG_FILE" >&2; }
+step()  { echo -e "\n${BOLD}── $* ──${NC}" | tee -a "$LOG_FILE"; }
+debug() { echo -e "${BLUE}→${NC} $*" >> "$LOG_FILE"; }
+
+cleanup() {
+  local exit_code=$?
+  if [ $exit_code -ne 0 ]; then
+    error "Backup failed with exit code $exit_code"
+    # Send failure notification if configured
+    if [ -n "${HEALTHCHECK_URL:-}" ]; then
+      curl -fsS -m 10 --retry 3 "${HEALTHCHECK_URL}/fail" > /dev/null 2>&1 || true
+    fi
+  fi
+  exit $exit_code
+}
+trap cleanup EXIT
+
+# ── Parse Arguments ──────────────────────────────────────────────────────────
+
+DRY_RUN=false
+SINGLE_SERVICE=""
+MANIFESTS_ONLY=false
+VERBOSE=false
+
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --dry-run)
+      DRY_RUN=true
+      shift
+      ;;
+    --service)
+      SINGLE_SERVICE="$2"
+      shift 2
+      ;;
+    --manifests-only)
+      MANIFESTS_ONLY=true
+      shift
+      ;;
+    --verbose|-v)
+      VERBOSE=true
+      shift
+      ;;
+    --help|-h)
+      echo "Usage: backup-all [OPTIONS]"
+      echo ""
+      echo "Options:"
+      echo "  --dry-run          Show what would be backed up without doing it"
+      echo "  --service NAME     Backup only the specified service"
+      echo "  --manifests-only   Backup only repository manifests (compose files, docs)"
+      echo "  --verbose, -v      Show detailed output"
+      echo "  --help, -h         Show this help"
+      exit 0
+      ;;
+    *)
+      error "Unknown option: $1"
+      exit 1
+      ;;
+  esac
+done
+
+# ── Prerequisites ────────────────────────────────────────────────────────────
+
+mkdir -p "$LOG_DIR"
+
+step "Checking prerequisites"
+
+# Check restic is installed
+if ! command -v restic &> /dev/null; then
+  error "Restic is not installed. Install with: brew install restic"
+  exit 1
+fi
+info "Restic found: $(restic version | head -1)"
+
+# Check backup config exists
+if [ ! -f "$BACKUP_ENV" ]; then
+  error "Backup configuration not found: $BACKUP_ENV"
+  error "Copy from .env.example and configure"
+  exit 1
+fi
+
+# Load backup environment
+set -a
+# shellcheck source=/dev/null
+source "$BACKUP_ENV"
+set +a
+
+# Verify required variables
+if [ -z "${RESTIC_REPOSITORY:-}" ]; then
+  error "RESTIC_REPOSITORY not set in $BACKUP_ENV"
+  exit 1
+fi
+
+if [ -z "${RESTIC_PASSWORD:-}" ]; then
+  error "RESTIC_PASSWORD not set in $BACKUP_ENV"
+  exit 1
+fi
+
+export RESTIC_REPOSITORY RESTIC_PASSWORD
+info "Repository: $RESTIC_REPOSITORY"
+
+# Check repository is initialized
+if ! restic snapshots --latest 1 > /dev/null 2>&1; then
+  warn "Repository may not be initialized. Run: restic init"
+  if [ "$DRY_RUN" = false ]; then
+    read -p "Initialize repository now? (y/N) " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+      restic init
+      info "Repository initialized"
+    else
+      exit 1
+    fi
+  fi
+fi
+
+# Ping healthcheck start (if configured)
+if [ -n "${HEALTHCHECK_URL:-}" ]; then
+  curl -fsS -m 10 --retry 3 "${HEALTHCHECK_URL}/start" > /dev/null 2>&1 || true
+fi
+
+# ── Backup Functions ─────────────────────────────────────────────────────────
+
+backup_service() {
+  local name="$1"
+  local path="$2"
+  local full_path="$HOMELAB_DIR/$path"
+
+  if [ ! -d "$full_path" ]; then
+    warn "Service directory not found: $full_path (skipping)"
+    return 0
+  fi
+
+  step "Backing up: $name"
+  debug "Path: $full_path"
+
+  local data_dir="$full_path/data"
+  local config_dir="$full_path/config"
+
+  # Build list of paths to backup
+  local backup_paths=()
+
+  if [ -d "$data_dir" ]; then
+    backup_paths+=("$data_dir")
+  fi
+
+  if [ -d "$config_dir" ]; then
+    backup_paths+=("$config_dir")
+  fi
+
+  # Always include compose.yml and .env if they exist
+  [ -f "$full_path/compose.yml" ] && backup_paths+=("$full_path/compose.yml")
+  [ -f "$full_path/.env" ] && backup_paths+=("$full_path/.env")
+
+  if [ ${#backup_paths[@]} -eq 0 ]; then
+    warn "No data found for $name (skipping)"
+    return 0
+  fi
+
+  # Build exclude patterns
+  local excludes=()
+  excludes+=("--exclude=*.log")
+  excludes+=("--exclude=*.tmp")
+  excludes+=("--exclude=*-shm")
+  excludes+=("--exclude=*-wal")
+  excludes+=("--exclude=__pycache__")
+  excludes+=("--exclude=node_modules")
+  excludes+=("--exclude=.git")
+
+  # Service-specific excludes
+  case "$name" in
+    immich)
+      excludes+=("--exclude=model-cache")
+      ;;
+    copyparty)
+      excludes+=("--exclude=db/")
+      ;;
+    authentik)
+      excludes+=("--exclude=redis/")
+      ;;
+  esac
+
+  if [ "$DRY_RUN" = true ]; then
+    info "[DRY RUN] Would backup:"
+    for p in "${backup_paths[@]}"; do
+      echo "  - $p"
+    done
+    return 0
+  fi
+
+  # Run restic backup
+  local restic_args=("backup")
+  restic_args+=("--tag" "$name")
+  restic_args+=("--tag" "homelab")
+  restic_args+=("${excludes[@]}")
+
+  if [ "$VERBOSE" = true ]; then
+    restic_args+=("--verbose")
+  fi
+
+  restic_args+=("${backup_paths[@]}")
+
+  if restic "${restic_args[@]}" 2>&1 | tee -a "$LOG_FILE"; then
+    info "$name backup complete"
+  else
+    error "$name backup failed"
+    return 1
+  fi
+}
+
+backup_manifests() {
+  step "Backing up repository manifests"
+
+  local manifest_paths=()
+
+  # Compose files and env files
+  while IFS= read -r -d '' file; do
+    manifest_paths+=("$file")
+  done < <(find "$HOMELAB_DIR" -maxdepth 3 -name "compose.yml" -print0 2>/dev/null)
+
+  while IFS= read -r -d '' file; do
+    manifest_paths+=("$file")
+  done < <(find "$HOMELAB_DIR" -maxdepth 3 -name ".env" -print0 2>/dev/null)
+
+  # Documentation
+  [ -d "$HOMELAB_DIR/docs" ] && manifest_paths+=("$HOMELAB_DIR/docs")
+  [ -f "$HOMELAB_DIR/DESIGN.md" ] && manifest_paths+=("$HOMELAB_DIR/DESIGN.md")
+  [ -f "$HOMELAB_DIR/CLAUDE.md" ] && manifest_paths+=("$HOMELAB_DIR/CLAUDE.md")
+
+  # Scripts
+  [ -d "$HOMELAB_DIR/scripts" ] && manifest_paths+=("$HOMELAB_DIR/scripts")
+
+  if [ "$DRY_RUN" = true ]; then
+    info "[DRY RUN] Would backup manifests:"
+    for p in "${manifest_paths[@]}"; do
+      echo "  - $p"
+    done
+    return 0
+  fi
+
+  restic backup \
+    --tag "manifests" \
+    --tag "homelab" \
+    --exclude="*.log" \
+    --exclude=".git" \
+    "${manifest_paths[@]}" 2>&1 | tee -a "$LOG_FILE"
+
+  info "Manifests backup complete"
+}
+
+run_pre_backup_hooks() {
+  local name="$1"
+  local path="$2"
+  local full_path="$HOMELAB_DIR/$path"
+
+  debug "Running pre-backup hooks for $name"
+
+  case "$name" in
+    authentik)
+      if docker ps --format '{{.Names}}' | grep -q '^authentik-db$'; then
+        info "Dumping Authentik database..."
+        docker exec authentik-db pg_dump -U authentik authentik > "$full_path/data/authentik-db-dump.sql" 2>/dev/null || true
+      fi
+      ;;
+    postgres)
+      if docker ps --format '{{.Names}}' | grep -q '^postgres$'; then
+        info "Dumping shared PostgreSQL..."
+        docker exec postgres pg_dumpall -U postgres > "$full_path/data/postgres-dump.sql" 2>/dev/null || true
+      fi
+      ;;
+    matrix)
+      if docker ps --format '{{.Names}}' | grep -q '^matrix-db$'; then
+        info "Dumping Matrix database..."
+        docker exec matrix-db pg_dump -U synapse synapse > "$full_path/data/matrix-db-dump.sql" 2>/dev/null || true
+      fi
+      ;;
+  esac
+}
+
+run_post_backup_hooks() {
+  local name="$1"
+  local path="$2"
+  local full_path="$HOMELAB_DIR/$path"
+
+  debug "Running post-backup hooks for $name"
+
+  # Clean up database dumps
+  case "$name" in
+    authentik)
+      rm -f "$full_path/data/authentik-db-dump.sql"
+      ;;
+    postgres)
+      rm -f "$full_path/data/postgres-dump.sql"
+      ;;
+    matrix)
+      rm -f "$full_path/data/matrix-db-dump.sql"
+      ;;
+  esac
+}
+
+# ── Service Definitions ──────────────────────────────────────────────────────
+# Order: Apps first (tier 4-5), then platform (tier 1-3)
+# This ensures the most recent user data is captured first
+
+declare -A SERVICES
+SERVICES=(
+  # Tier 4-5: Applications and AI (backup first)
+  ["immich"]="apps/immich"
+  ["copyparty"]="apps/copyparty"
+  ["matrix"]="apps/matrix"
+  ["openclaw"]="ai/openclaw"
+
+  # Tier 3: Platform services
+  ["uptime-kuma"]="platform/uptime-kuma"
+  ["homepage"]="platform/homepage"
+  ["dockge"]="platform/dockge"
+
+  # Tier 2: Infrastructure
+  ["postgres"]="platform/postgres"
+  ["caddy"]="platform/caddy"
+
+  # Tier 1: Identity (backup last, restore first)
+  ["authentik"]="platform/authentik"
+)
+
+# Backup order (apps first, identity last)
+BACKUP_ORDER=(
+  "immich"
+  "copyparty"
+  "matrix"
+  "openclaw"
+  "uptime-kuma"
+  "homepage"
+  "dockge"
+  "postgres"
+  "caddy"
+  "authentik"
+)
+
+# ── Main ─────────────────────────────────────────────────────────────────────
+
+echo ""
+echo -e "${BOLD}╔══════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${BOLD}║             Homelab Backup — $(date '+%Y-%m-%d %H:%M')              ║${NC}"
+echo -e "${BOLD}╚══════════════════════════════════════════════════════════════╝${NC}"
+echo ""
+
+START_TIME=$(date +%s)
+
+if [ "$MANIFESTS_ONLY" = true ]; then
+  backup_manifests
+elif [ -n "$SINGLE_SERVICE" ]; then
+  if [ -z "${SERVICES[$SINGLE_SERVICE]:-}" ]; then
+    error "Unknown service: $SINGLE_SERVICE"
+    echo "Available services: ${!SERVICES[*]}"
+    exit 1
+  fi
+  run_pre_backup_hooks "$SINGLE_SERVICE" "${SERVICES[$SINGLE_SERVICE]}"
+  backup_service "$SINGLE_SERVICE" "${SERVICES[$SINGLE_SERVICE]}"
+  run_post_backup_hooks "$SINGLE_SERVICE" "${SERVICES[$SINGLE_SERVICE]}"
+else
+  # Full backup
+  for service in "${BACKUP_ORDER[@]}"; do
+    path="${SERVICES[$service]}"
+    if [ -d "$HOMELAB_DIR/$path" ]; then
+      run_pre_backup_hooks "$service" "$path"
+      backup_service "$service" "$path"
+      run_post_backup_hooks "$service" "$path"
+    fi
+  done
+
+  backup_manifests
+fi
+
+# ── Retention Policy ─────────────────────────────────────────────────────────
+
+if [ "$DRY_RUN" = false ] && [ "$MANIFESTS_ONLY" = false ]; then
+  step "Applying retention policy"
+
+  KEEP_DAILY="${RETENTION_DAILY:-14}"
+  KEEP_WEEKLY="${RETENTION_WEEKLY:-8}"
+  KEEP_MONTHLY="${RETENTION_MONTHLY:-6}"
+  KEEP_YEARLY="${RETENTION_YEARLY:-1}"
+
+  restic forget \
+    --keep-daily "$KEEP_DAILY" \
+    --keep-weekly "$KEEP_WEEKLY" \
+    --keep-monthly "$KEEP_MONTHLY" \
+    --keep-yearly "$KEEP_YEARLY" \
+    --prune 2>&1 | tee -a "$LOG_FILE"
+
+  info "Retention policy applied"
+fi
+
+# ── Summary ──────────────────────────────────────────────────────────────────
+
+END_TIME=$(date +%s)
+DURATION=$((END_TIME - START_TIME))
+
+step "Backup Summary"
+
+if [ "$DRY_RUN" = false ]; then
+  echo ""
+  restic snapshots --latest 5 2>&1 | tee -a "$LOG_FILE"
+  echo ""
+
+  # Repository stats
+  REPO_SIZE=$(restic stats --mode raw-data 2>/dev/null | grep "Total Size" | awk '{print $3, $4}' || echo "unknown")
+  info "Repository size: $REPO_SIZE"
+fi
+
+info "Duration: ${DURATION}s"
+info "Log file: $LOG_FILE"
+
+# Ping healthcheck success (if configured)
+if [ -n "${HEALTHCHECK_URL:-}" ] && [ "$DRY_RUN" = false ]; then
+  curl -fsS -m 10 --retry 3 "${HEALTHCHECK_URL}" > /dev/null 2>&1 || true
+fi
+
+echo ""
+echo -e "${GREEN}${BOLD}Backup complete!${NC}"
+echo ""

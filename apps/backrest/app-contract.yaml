@@ -1,0 +1,81 @@
+name: backrest
+version: 1.11.2
+description: Web UI for Restic backup management — configure repositories, schedule backups, monitor health, browse snapshots
+
+runtime:
+  image: ghcr.io/garethgeorge/backrest
+  version: 1.11.2
+
+auth:
+  mode: dual
+  provider: authentik
+  mechanism: |
+    Two-layer authentication:
+    1. Caddy forward-auth to Authentik (admin group required)
+    2. Backrest's built-in username/password (first-run setup)
+
+    This ensures only platform admins can access backup management,
+    with Backrest's auth as a secondary gate.
+  groups:
+    admin: homelab-admin
+  admin_only: true
+
+network:
+  hostname: backup.home
+  internalPort: 9898
+  external: false
+
+data:
+  paths:
+    - ./config        # Backrest configuration (repos, schedules)
+    - ./data          # Operation history, logs
+
+backup:
+  includes:
+    - config/         # Repository and schedule configuration
+  excludes:
+    - data/           # Operation logs, can be regenerated
+  rpoClass: weekly
+  restoreTest: documented
+  note: |
+    Backrest config contains repository definitions but NOT the repository password.
+    The repository password must be stored separately in a password manager.
+
+health:
+  endpoint: /
+  port: 9898
+  note: Returns 200 when healthy
+
+dependencies:
+  - name: caddy
+    reason: Reverse proxy with Authentik forward-auth
+  - name: authentik
+    reason: SSO authentication (admin group)
+  - name: tailscale
+    reason: Secure access to offsite backup Pi
+
+capabilities:
+  - Repository configuration (add/edit backup targets)
+  - Backup scheduling (cron-based)
+  - Manual backup triggers
+  - Snapshot browsing and management
+  - Restore operations
+  - Health monitoring and alerts
+  - Operation history and logs
+
+volumes_mounted:
+  read_only:
+    - platform/authentik/data
+    - platform/postgres/data
+    - platform/caddy/data
+    - platform/uptime-kuma/data
+    - platform/homepage/config
+    - platform/dockge/data
+    - apps/immich/data
+    - apps/copyparty/data
+    - apps/matrix/data
+    - manifests (full repo)
+  note: |
+    Backrest mounts all service data directories as read-only.
+    This allows it to back up data without risk of modification.
+    SSH keys are mounted for SFTP access to the backup Pi.

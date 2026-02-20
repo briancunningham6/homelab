@@ -28,6 +28,12 @@
         icon: authentik
         server: my-docker
         container: authentik-server
+    - Backrest:
+        href: http://backup.home
+        description: Backup Management
+        icon: mdi-backup-restore
+        server: my-docker
+        container: backrest
 
 - Applications:
     - Immich:

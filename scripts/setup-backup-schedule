@@ -1,0 +1,191 @@
+#!/usr/bin/env bash
+# setup-backup-schedule — Configure automated daily backups via launchd (macOS)
+#
+# This script creates a launchd plist that runs daily backups at 3 AM.
+# The schedule avoids peak usage times and runs while the system is typically idle.
+#
+# What this script does:
+#   1. Creates a launchd plist for the backup job
+#   2. Loads the plist into launchd
+#   3. Verifies the schedule is active
+#
+# Usage:
+#   setup-backup-schedule           # Install and enable
+#   setup-backup-schedule --remove  # Remove scheduled backup
+
+set -euo pipefail
+
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+BOLD='\033[1m'
+NC='\033[0m'
+
+info()  { echo -e "${GREEN}✓${NC} $*"; }
+warn()  { echo -e "${YELLOW}⚠${NC} $*"; }
+error() { echo -e "${RED}✗${NC} $*" >&2; }
+step()  { echo -e "\n${BOLD}── $* ──${NC}"; }
+
+HOMELAB_DIR="${HOMELAB_DIR:-$HOME/homelab}"
+PLIST_NAME="com.homelab.backup"
+PLIST_PATH="$HOME/Library/LaunchAgents/${PLIST_NAME}.plist"
+BACKUP_SCRIPT="$HOMELAB_DIR/scripts/backup-all"
+LOG_DIR="$HOMELAB_DIR/platform/backup/logs"
+
+# ── Handle --remove flag ─────────────────────────────────────────────────────
+
+if [ "${1:-}" = "--remove" ]; then
+  step "Removing backup schedule"
+
+  if launchctl list | grep -q "$PLIST_NAME"; then
+    launchctl unload "$PLIST_PATH" 2>/dev/null || true
+    info "Unloaded from launchd"
+  fi
+
+  if [ -f "$PLIST_PATH" ]; then
+    rm "$PLIST_PATH"
+    info "Removed plist: $PLIST_PATH"
+  else
+    warn "Plist not found: $PLIST_PATH"
+  fi
+
+  echo ""
+  echo "Scheduled backups disabled."
+  exit 0
+fi
+
+# ── Prerequisites ────────────────────────────────────────────────────────────
+
+step "Checking prerequisites"
+
+if [ ! -f "$BACKUP_SCRIPT" ]; then
+  error "Backup script not found: $BACKUP_SCRIPT"
+  exit 1
+fi
+info "Backup script found"
+
+if [ ! -f "$HOMELAB_DIR/platform/backup/.env" ]; then
+  error "Backup not configured. Run: scripts/setup-backup-pi <pi-host>"
+  exit 1
+fi
+info "Backup configuration found"
+
+mkdir -p "$LOG_DIR"
+mkdir -p "$(dirname "$PLIST_PATH")"
+
+# ── Create launchd plist ─────────────────────────────────────────────────────
+
+step "Creating launchd configuration"
+
+cat > "$PLIST_PATH" << EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>${PLIST_NAME}</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>-c</string>
+        <string>export HOMELAB_DIR="${HOMELAB_DIR}"; "${BACKUP_SCRIPT}" >> "${LOG_DIR}/scheduled-backup.log" 2>&1</string>
+    </array>
+
+    <!-- Run daily at 3:00 AM -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>3</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <!-- Also run if we missed the scheduled time (e.g., laptop was asleep) -->
+    <key>StartInterval</key>
+    <integer>86400</integer>
+
+    <!-- Environment variables -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+        <key>HOME</key>
+        <string>${HOME}</string>
+    </dict>
+
+    <!-- Logging -->
+    <key>StandardOutPath</key>
+    <string>${LOG_DIR}/launchd-stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>${LOG_DIR}/launchd-stderr.log</string>
+
+    <!-- Keep the job loaded -->
+    <key>KeepAlive</key>
+    <false/>
+
+    <!-- Run at load if past schedule -->
+    <key>RunAtLoad</key>
+    <false/>
+
+    <!-- Low priority - don't interfere with user activity -->
+    <key>LowPriorityIO</key>
+    <true/>
+    <key>ProcessType</key>
+    <string>Background</string>
+</dict>
+</plist>
+EOF
+
+info "Created: $PLIST_PATH"
+
+# ── Load into launchd ────────────────────────────────────────────────────────
+
+step "Loading into launchd"
+
+# Unload first if already loaded
+if launchctl list | grep -q "$PLIST_NAME"; then
+  launchctl unload "$PLIST_PATH" 2>/dev/null || true
+  info "Unloaded previous version"
+fi
+
+launchctl load "$PLIST_PATH"
+info "Loaded into launchd"
+
+# ── Verify ───────────────────────────────────────────────────────────────────
+
+step "Verifying schedule"
+
+if launchctl list | grep -q "$PLIST_NAME"; then
+  info "Backup job is scheduled"
+  echo ""
+  launchctl list | grep "$PLIST_NAME"
+else
+  error "Failed to verify backup job"
+  exit 1
+fi
+
+# ── Output ───────────────────────────────────────────────────────────────────
+
+echo ""
+echo -e "${BOLD}╔══════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${BOLD}║           Backup Schedule Configured                          ║${NC}"
+echo -e "${BOLD}╚══════════════════════════════════════════════════════════════╝${NC}"
+echo ""
+echo -e "${BOLD}Schedule:${NC} Daily at 3:00 AM"
+echo -e "${BOLD}Plist:${NC} $PLIST_PATH"
+echo -e "${BOLD}Logs:${NC} $LOG_DIR/"
+echo ""
+echo -e "${BOLD}Commands:${NC}"
+echo "  # Run backup manually now"
+echo "  scripts/backup-all"
+echo ""
+echo "  # Check job status"
+echo "  launchctl list | grep $PLIST_NAME"
+echo ""
+echo "  # View recent logs"
+echo "  tail -50 $LOG_DIR/scheduled-backup.log"
+echo ""
+echo "  # Remove schedule"
+echo "  scripts/setup-backup-schedule --remove"
+echo ""
