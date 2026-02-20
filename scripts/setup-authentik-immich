@@ -98,6 +98,7 @@ info "Authentik API reachable"
 step "Resolving flows"
 AUTH_FLOW_SLUG="default-authentication-flow"
 AUTHZ_FLOW_SLUG="default-provider-authorization-implicit-consent"
+INVALIDATION_FLOW_SLUG="default-invalidation-flow"
 
 AUTH_FLOW_PK=$(ak_api GET "flows/instances/?slug=$AUTH_FLOW_SLUG" | \
   python3 -c "import sys,json; r=json.load(sys.stdin); print(r['results'][0]['pk'])")
@@ -106,6 +107,10 @@ info "Auth flow: $AUTH_FLOW_SLUG ($AUTH_FLOW_PK)"
 AUTHZ_FLOW_PK=$(ak_api GET "flows/instances/?slug=$AUTHZ_FLOW_SLUG" | \
   python3 -c "import sys,json; r=json.load(sys.stdin); print(r['results'][0]['pk'])")
 info "Authorization flow: $AUTHZ_FLOW_SLUG ($AUTHZ_FLOW_PK)"
+
+INVALIDATION_FLOW_PK=$(ak_api GET "flows/instances/?slug=$INVALIDATION_FLOW_SLUG" | \
+  python3 -c "import sys,json; r=json.load(sys.stdin); print(r['results'][0]['pk'])")
+info "Invalidation flow: $INVALIDATION_FLOW_SLUG ($INVALIDATION_FLOW_PK)"
 
 # ── Get signing key ───────────────────────────────────────────────────────────
 
@@ -148,9 +153,9 @@ import json
 print(json.dumps({
   "name": "Immich",
   "authorization_flow": "$AUTHZ_FLOW_PK",
-  "authentication_flow": "$AUTH_FLOW_PK",
+  "invalidation_flow": "$INVALIDATION_FLOW_PK",
   "client_type": "confidential",
-  "redirect_uris": "http://immich.home/auth/login",
+  "redirect_uris": [{"matching_mode": "strict", "url": "http://immich.home/auth/login"}],
   "signing_key": "$SIGNING_KEY_PK",
   "sub_mode": "hashed_user_id",
   "include_claims_in_id_token": True,

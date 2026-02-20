@@ -20,6 +20,8 @@ services:
         condition: service_healthy
       authentik-redis:
         condition: service_healthy
+    ports:
+      - "9000:9000"
     networks:
       - authentik-internal
       - caddy-net

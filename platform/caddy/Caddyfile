@@ -60,7 +60,7 @@ http://copyparty.home {
     }
 }
 
-http://immich.home {
+http://immich.home, http://192.168.0.199, http://100.73.223.8 {
     reverse_proxy immich-server:2283 {
         header_up X-Real-IP {remote_host}
     }
