@@ -55,11 +55,26 @@ The original automation script needed updates for Authentik 2024.12 API:
 4. Confirm issuer URL matches reachable Authentik host.
 5. Test login from browser first, then iOS app.
 
-## 8) Follow-up improvements
+## 8) Authentik outpost + Caddy forward-auth gotcha (Backrest)
 
+- `forward_auth` to `/outpost.goauthentik.io/auth/caddy` can return **404** until a matching proxy provider is fully configured and attached to the embedded outpost.
+- Required components for protected app (`backup.home`):
+  1. Proxy provider (`mode=forward_single`, `external_host=http://backup.home`)
+  2. Application bound to that provider
+  3. Policy binding/group access (`homelab-admin`)
+  4. Provider attached to `authentik Embedded Outpost`
+- Direct `curl` to outpost auth endpoint may return **500 configuration error** if Caddy forward-auth headers are missing; this is expected in manual tests.
+- Correct end-to-end test is via Caddy route:
+  - `curl -I -H 'Host: backup.home' http://127.0.0.1/`
+  - expected: `302` redirect to Authentik authorize URL.
+
+## 9) Follow-up improvements
+
+- Add `scripts/setup-authentik-backrest` for idempotent setup of provider/app/group/outpost attachment.
 - Update `scripts/setup-authentik-immich` to fully support Authentik 2024.12 and iOS callback by default.
-- Add an automated OIDC validation script:
+- Add an automated OIDC/forward-auth validation script:
   - verify issuer reachability
   - verify provider redirect URIs
   - verify required scope mappings
+  - verify outpost endpoint and 302 behavior through Caddy
 - Optional: add HTTPS with a trusted hostname for better mobile UX.

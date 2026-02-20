@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# setup-kuma-baseline — Print and validate baseline monitors for Uptime Kuma
+# Note: monitor creation currently requires Kuma admin session in web UI.
+
+set -euo pipefail
+
+HOMELAB_DIR="${HOMELAB_DIR:-$HOME/homelab}"
+
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+info() { echo -e "${GREEN}✓${NC} $*"; }
+warn() { echo -e "${YELLOW}⚠${NC} $*"; }
+
+if ! docker ps --format '{{.Names}}' | grep -q '^uptime-kuma$'; then
+  warn "uptime-kuma container is not running. Start platform first (scripts/platform-up)."
+  exit 1
+fi
+
+cat <<'EOF'
+Baseline monitors to add in Uptime Kuma (http://status.home):
+
+1) Caddy        HTTP  http://caddy:80/                                  interval 60s
+2) Dockge       HTTP  http://dockge:5001/                               interval 60s
+3) Homepage     HTTP  http://homepage:3000/                             interval 60s
+4) Authentik    HTTP  http://authentik-server:9000/-/health/live/       interval 60s
+5) Immich       HTTP  http://immich-server:2283/api/server/ping         interval 60s
+6) Backrest     HTTP  http://backrest:9898/                             interval 60s
+7) OpenClaw     HTTP  http://host.docker.internal:18789/                interval 60s
+
+Tip: Tag all of these with: platform
+EOF
+
+echo ""
+echo "Connectivity precheck from this host:"
+
+check() {
+  local name="$1"; shift
+  local url="$1"
+  code=$(curl -s -o /dev/null -w '%{http_code}' "$url" || true)
+  if [[ "$code" =~ ^2|3|4 ]]; then
+    info "$name reachable ($code): $url"
+  else
+    warn "$name not reachable ($code): $url"
+  fi
+}
+
+check "Caddy" "http://127.0.0.1/"
+check "Dockge (via Caddy)" "http://127.0.0.1/" # uses Host routing below
+code=$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: dockge.home' http://127.0.0.1/ || true); [[ "$code" =~ ^2|3|4 ]] && info "Dockge via Caddy reachable ($code)" || warn "Dockge via Caddy not reachable ($code)"
+code=$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: home.home' http://127.0.0.1/ || true); [[ "$code" =~ ^2|3|4 ]] && info "Homepage via Caddy reachable ($code)" || warn "Homepage via Caddy not reachable ($code)"
+code=$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: login.home' http://127.0.0.1/-/health/live/ || true); [[ "$code" =~ ^2|3|4 ]] && info "Authentik via Caddy reachable ($code)" || warn "Authentik via Caddy not reachable ($code)"
+code=$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: immich.home' http://127.0.0.1/api/server/ping || true); [[ "$code" =~ ^2|3|4 ]] && info "Immich via Caddy reachable ($code)" || warn "Immich via Caddy not reachable ($code)"
+code=$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: backup.home' http://127.0.0.1/ || true); [[ "$code" =~ ^2|3|4 ]] && info "Backrest via Caddy reachable ($code)" || warn "Backrest via Caddy not reachable ($code)"
+check "OpenClaw" "http://127.0.0.1:18789/"
+
+echo ""
+warn "Monitor creation is manual in current version; this script defines the required baseline and verifies endpoints."

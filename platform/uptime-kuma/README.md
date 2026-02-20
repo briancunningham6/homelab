@@ -43,6 +43,10 @@ On first launch, Uptime Kuma will prompt you to create an admin account:
 1. Navigate to `http://status.home`
 2. Create an admin username and password
 3. Add monitors (see recommended monitors below)
+4. Run baseline helper checklist from repo root:
+   ```bash
+   HOMELAB_DIR=$(pwd) ./scripts/setup-kuma-baseline
+   ```
 
 **Note:** Admin credentials are stored in the SQLite database at `./data/kuma.db` — include this in backups.
 

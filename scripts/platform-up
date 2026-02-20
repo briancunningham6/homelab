@@ -94,3 +94,4 @@ fi
 
 section "Platform startup complete"
 info "All services started. Run 'scripts/dr-verify' to check health."
+warn "Uptime Kuma monitors are not auto-created yet. Run 'HOMELAB_DIR=$HOMELAB_DIR ./scripts/setup-kuma-baseline' and add the baseline monitors in http://status.home."
