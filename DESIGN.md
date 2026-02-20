@@ -309,6 +309,7 @@ The architecture supports scaling beyond one Mac mini by adding specialised node
 | [docs/ops-standard.md](docs/ops-standard.md) | Operational standards — backup, DR, security, restart/recovery |
 | [docs/rollout-plan.md](docs/rollout-plan.md) | Phased implementation plan and status tracking |
 | [docs/agent-model.md](docs/agent-model.md) | OpenClaw multi-agent access model |
+| [docs/openclaw-alignment.md](docs/openclaw-alignment.md) | OpenClaw same-host alignment and integration guide |
 | [docs/onboarding.md](docs/onboarding.md) | Admin bootstrap and user management |
 | [docs/teardown.md](docs/teardown.md) | Controlled teardown and clean reinstall procedures |
 | [docs/app-ideas.md](docs/app-ideas.md) | Candidate application ideas and research tracker |
