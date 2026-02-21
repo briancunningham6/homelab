@@ -55,7 +55,30 @@ export interface MissionFile {
   filename: string
   original_name: string
   mime_type?: string
-  size_bytes: number
+  size: number
   uploaded_at: string
   extracted_text?: string
+}
+
+export interface Message {
+  id: string
+  mission_id: string
+  role: string
+  content: string
+  tool_name?: string
+  input_tokens?: number
+  output_tokens?: number
+  model_used?: string
+  created_at: string
+}
+
+export interface MissionUpdate {
+  name?: string
+  description?: string
+  goals?: string
+  category_id?: string
+  llm_provider_id?: string
+  model_override?: string
+  check_interval?: string
+  status?: string
 }

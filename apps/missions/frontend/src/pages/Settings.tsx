@@ -1,3 +1,4 @@
+import { ProviderSettings } from '../components/ProviderSettings'
 import '../styles/Settings.css'
 
 export const Settings: React.FC = () => {
@@ -11,20 +12,7 @@ export const Settings: React.FC = () => {
       <div className="settings-content">
         <section className="settings-section">
           <h2>LLM Providers</h2>
-          <div className="placeholder-notice">
-            <div className="placeholder-icon">⚙️</div>
-            <h3>Coming in Phase 2</h3>
-            <p>
-              Configure your API keys for Claude and OpenAI here. API keys will be encrypted
-              and stored securely.
-            </p>
-            <ul className="feature-list">
-              <li>Add Anthropic Claude API key</li>
-              <li>Add OpenAI API key</li>
-              <li>Set default provider per mission</li>
-              <li>View token usage and costs</li>
-            </ul>
-          </div>
+          <ProviderSettings />
         </section>
 
         <section className="settings-section">

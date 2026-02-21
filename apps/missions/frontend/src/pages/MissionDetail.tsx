@@ -1,6 +1,7 @@
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useMission, useMissionFiles, useDeleteMission } from '../hooks/useMissions'
 import { FileUpload } from '../components/FileUpload'
+import { Chat } from '../components/Chat'
 import '../styles/MissionDetail.css'
 
 export const MissionDetail: React.FC = () => {
@@ -128,13 +129,8 @@ export const MissionDetail: React.FC = () => {
         </section>
 
         <section className="mission-section">
-          <h2>Chat History</h2>
-          <div className="chat-placeholder">
-            <p>Chat interface will be available in Phase 2</p>
-            <p className="placeholder-note">
-              You'll be able to interact with the AI agent here, and all conversations will be saved.
-            </p>
-          </div>
+          <h2>Chat with AI Agent</h2>
+          <Chat missionId={id!} />
         </section>
       </div>
     </div>
