@@ -9,7 +9,8 @@ services:
       - "53:53/tcp"
       - "53:53/udp"
       # DNS over HTTPS (optional)
-      - "443:443/tcp"
+      # Disabled: host 443 is used by Caddy
+      # - "443:443/tcp"
       # DNS over TLS (optional)
       - "853:853/tcp"
       # DNS over QUIC (optional)
