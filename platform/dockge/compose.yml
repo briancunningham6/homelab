@@ -1,14 +1,14 @@
 services:
   dockge:
-    image: louislam/dockge:1.4.2
+    image: louislam/dockge:latest
     container_name: dockge
     restart: unless-stopped
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./data:/app/data
-      - ${DOCKGE_STACKS_DIR:-/opt/stacks}:/opt/stacks
+      - ${DOCKGE_STACKS_DIR_HOST:-/Users/user/homelab}:/opt/stacks
     environment:
-      - DOCKGE_STACKS_DIR=${DOCKGE_STACKS_DIR:-/opt/stacks}
+      - DOCKGE_STACKS_DIR=/opt/stacks
     networks:
       - caddy-net
 
