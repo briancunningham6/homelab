@@ -1,0 +1,147 @@
+name: missions
+version: 0.1.0-phase1
+description: Persistent AI agent management system with goal-oriented tasks and evolving context
+
+runtime:
+  backend:
+    image: python
+    version: 3.12-slim
+    framework: FastAPI
+  frontend:
+    image: node
+    version: 20-alpine
+    framework: React + TypeScript + Vite
+
+auth:
+  mode: forward-auth
+  provider: authentik
+  mechanism: |
+    Caddy forward-auth to Authentik.
+    All authenticated users can access Missions.
+    Future: Role-based access for admin features.
+  groups:
+    user: all-authenticated-users
+  admin_only: false
+
+network:
+  hostname: missions.home
+  backend_port: 8000
+  frontend_port: 5173
+
+data:
+  paths:
+    - ./data/files  # Mission files organized by mission ID
+
+database:
+  type: postgresql
+  shared: true
+  schema: homelab
+  tables:
+    - categories
+    - llm_providers
+    - missions
+    - mission_files
+    - messages
+
+backup:
+  includes:
+    - PostgreSQL database (missions, messages, providers, categories)
+    - data/files/  # Uploaded documents
+  excludes:
+    - None (all data is important)
+  rpoClass: daily
+  restoreTest: documented
+
+health:
+  endpoint: /api/health
+  port: 8000
+  note: Backend health check includes database connectivity test
+
+dependencies:
+  - name: postgres
+    reason: Shared database for all mission data
+  - name: caddy
+    reason: Reverse proxy with Authentik forward-auth
+  - name: authentik
+    reason: SSO authentication
+
+capabilities:
+  phase1:
+    - Mission CRUD (create, read, update, delete)
+    - File upload and storage per mission
+    - PostgreSQL schema and migrations
+    - Basic React UI scaffold
+    - Authentik integration
+  phase2_planned:
+    - Real-time streaming chat interface
+    - Multi-provider LLM support (Claude, OpenAI)
+    - Encrypted API key storage
+    - Token counting and cost tracking
+  phase3_planned:
+    - Agent tools (web search, document parsing, code execution)
+    - Context assembly from files and history
+    - Tool call logging
+  phase4_planned:
+    - Per-mission scheduled checks
+    - Ntfy push notifications
+    - Deadline detection from context
+  phase5_planned:
+    - MCP server for external agent access
+  phase6_planned:
+    - Cost dashboard
+    - Mission export (JSON, PDF)
+    - Advanced category management
+
+api:
+  rest:
+    - GET /api/health
+    - GET /api/missions
+    - POST /api/missions
+    - GET /api/missions/{id}
+    - PUT /api/missions/{id}
+    - DELETE /api/missions/{id}
+    - POST /api/missions/{id}/files
+    - GET /api/missions/{id}/files
+    - GET /api/missions/{id}/files/{file_id}
+    - DELETE /api/missions/{id}/files/{file_id}
+  websocket_planned:
+    - WS /api/missions/{id}/chat  # Phase 2
+  mcp_planned:
+    - list_missions  # Phase 5
+    - get_mission
+    - send_message
+    - get_history
+
+external_services:
+  optional:
+    - Tavily (web search - Phase 3)
+    - Ntfy (push notifications - Phase 4)
+  user_configured:
+    - Anthropic Claude API (via UI - Phase 2)
+    - OpenAI API (via UI - Phase 2)
+
+security:
+  - API keys encrypted at rest (Fernet)
+  - Authentik forward-auth on all endpoints
+  - File uploads validated and UUID-named
+  - Code execution sandboxed (Phase 3)
+  - SQL injection prevention (SQLAlchemy ORM)
+
+monitoring:
+  uptime_kuma:
+    - type: HTTP
+    - url: http://missions-backend:8000/api/health
+    - interval: 60s
+
+development:
+  hot_reload: true
+  debug_mode: configurable
+  local_setup: |
+    cd apps/missions
+    cp .env.example .env
+    # Edit .env: set ENCRYPTION_KEY and POSTGRES_PASSWORD
+    docker compose up -d
+
+production_ready: false
+current_phase: Phase 1 (Foundation)
+next_phase: Phase 2 (Chat Interface)

@@ -66,3 +66,9 @@
         icon: jellyfin
         server: my-docker
         container: jellyfin
+    - Missions:
+        href: http://missions.home
+        description: AI Agent Manager
+        icon: mdi-target
+        server: my-docker
+        container: missions-backend

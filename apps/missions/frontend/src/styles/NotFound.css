@@ -1,0 +1,32 @@
+.not-found {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+}
+
+.not-found-content {
+  text-align: center;
+  padding: 40px;
+}
+
+.error-code {
+  font-size: 120px;
+  font-weight: 700;
+  margin: 0;
+  color: #2196F3;
+  line-height: 1;
+}
+
+.not-found-content h2 {
+  font-size: 32px;
+  font-weight: 600;
+  margin: 16px 0;
+  color: #333;
+}
+
+.not-found-content p {
+  font-size: 16px;
+  color: #666;
+  margin: 0 0 32px 0;
+}

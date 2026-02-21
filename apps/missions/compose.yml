@@ -1,0 +1,60 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: missions-backend
+    restart: unless-stopped
+    hostname: missions-backend
+    environment:
+      - DATABASE_URL=postgresql://missions:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-homelab}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - NTFY_URL=${NTFY_URL:-http://ntfy:80}
+      - NTFY_TOPIC=${NTFY_TOPIC:-missions}
+      - DEBUG=${DEBUG:-false}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - CORS_ORIGINS=http://missions.home,http://localhost:5173
+    volumes:
+      - ./data/files:/app/data/files
+      - ./backend:/app
+    networks:
+      - caddy-net
+      - postgres-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: missions-frontend
+    restart: unless-stopped
+    hostname: missions-frontend
+    environment:
+      - VITE_API_URL=http://missions-backend:8000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - caddy-net
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5173"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+networks:
+  caddy-net:
+    external: true
+  postgres-net:
+    external: true

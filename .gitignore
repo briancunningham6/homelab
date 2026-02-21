@@ -24,6 +24,11 @@
 # ── Docker ────────────────────────────────────────────────────────────────────
 **/docker-compose.override.yml
 
+# ── DMZ content (personal, not committed) ───────────────────────────────────
+content/blog/
+content/files/
+!content/README.md
+
 # ── Compiled / generated output ──────────────────────────────────────────────
 *.pyc
 __pycache__/

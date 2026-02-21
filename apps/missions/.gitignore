@@ -1,0 +1,40 @@
+# Environment and secrets
+.env
+*.env
+!.env.example
+
+# Data directory (persistent storage, contains user files)
+data/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# Node/React
+node_modules/
+dist/
+build/
+*.log
+.DS_Store
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Database
+*.db
+*.sqlite
+
+# Alembic
+alembic/versions/*.pyc
