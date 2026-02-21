@@ -8,7 +8,7 @@ services:
       - ./data/db:/cfg/hists
       - ./data/library:/w
     healthcheck:
-      test: ["CMD", "sh", "-c", "curl -sf http://localhost:3923/ || exit 1"]
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:3923/', timeout=5)"]
       interval: 30s
       timeout: 10s
       retries: 5
