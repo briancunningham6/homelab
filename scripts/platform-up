@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # platform-up — Start all platform services in the correct boot order
 # Usage: platform-up
-# Boot order per docs/ops-standard.md § 4:
-#   1. Tailscale → 2. Caddy → 3. Authentik → 4. Uptime Kuma → 5. Homepage → 6. Dockge
+# Boot order per docs/ops-standard.md § 4 (plus shared DB prerequisite):
+#   1. Tailscale → 2. Caddy → 3. PostgreSQL → 4. Authentik → 5. Uptime Kuma → 6. Homepage → 7. Dockge
 
 set -euo pipefail
 
@@ -53,6 +53,7 @@ echo -e "${BOLD}╚════════════════════�
 # Platform services in boot order
 start_if_exists "tailscale" 8
 start_if_exists "caddy" 5
+start_if_exists "postgres" 8
 start_if_exists "authentik" 15
 start_if_exists "uptime-kuma" 5
 start_if_exists "homepage" 5
