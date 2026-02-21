@@ -1,0 +1,42 @@
+services:
+  adguard:
+    image: adguard/adguardhome:v0.107.54
+    container_name: adguard
+    restart: unless-stopped
+    hostname: adguard
+    ports:
+      # DNS (required for network DNS)
+      - "53:53/tcp"
+      - "53:53/udp"
+      # DNS over HTTPS (optional)
+      - "443:443/tcp"
+      # DNS over TLS (optional)
+      - "853:853/tcp"
+      # DNS over QUIC (optional)
+      - "853:853/udp"
+      # DNSCrypt (optional)
+      - "5443:5443/tcp"
+      - "5443:5443/udp"
+    volumes:
+      # AdGuard configuration
+      - ./data/work:/opt/adguardhome/work
+      # AdGuard data (query logs, stats)
+      - ./data/conf:/opt/adguardhome/conf
+    extra_hosts:
+      # Required for Authentik forward-auth
+      - "login.home:host-gateway"
+      - "adguard.home:host-gateway"
+    networks:
+      - caddy-net
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    # Note: AdGuard uses port 3000 for web UI internally,
+    # but we access via Caddy at adguard.home
+
+networks:
+  caddy-net:
+    external: true

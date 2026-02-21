@@ -1,0 +1,100 @@
+name: adguard
+version: 0.107.54
+description: Network-wide ad blocking and DNS server with privacy protection
+
+runtime:
+  image: adguard/adguardhome
+  version: 0.107.54
+
+auth:
+  mode: dual
+  provider: authentik
+  mechanism: |
+    Two-layer authentication:
+    1. Caddy forward-auth to Authentik (admin group required for web UI)
+    2. AdGuard's built-in username/password (first-run setup)
+
+    AdGuard Home does not support native OIDC/SSO.
+    The web UI is protected by Authentik forward-auth.
+    DNS queries are unauthenticated (standard DNS behavior).
+  groups:
+    admin: homelab-admin
+  admin_only: true
+
+network:
+  hostname: adguard.home
+  internalPort: 3000  # Web UI
+  exposedPorts:
+    - 53/tcp    # DNS
+    - 53/udp    # DNS
+    - 443/tcp   # DNS over HTTPS
+    - 853/tcp   # DNS over TLS
+    - 853/udp   # DNS over QUIC
+  external: true
+  note: |
+    Port 53 must be exposed to host for DNS server functionality.
+    Once configured, this becomes the network's primary DNS server.
+
+data:
+  paths:
+    - ./data/work  # AdGuard working data (logs, cache)
+    - ./data/conf  # Configuration files
+
+backup:
+  includes:
+    - data/conf/   # Configuration (blocklists, rewrites, settings)
+  excludes:
+    - data/work/   # Query logs and cache (regeneratable)
+  rpoClass: weekly
+  restoreTest: documented
+  note: |
+    Configuration includes DNS rewrites, blocklists, and settings.
+    Query logs are excluded from backup (privacy and size).
+
+health:
+  endpoint: /
+  port: 3000
+  note: Web UI health check on port 3000
+
+dependencies:
+  - name: caddy
+    reason: Reverse proxy with Authentik forward-auth for admin UI
+  - name: authentik
+    reason: SSO authentication (admin group)
+
+capabilities:
+  - Network-wide ad and tracker blocking
+  - Custom DNS rewrites (*.home domain resolution)
+  - Query logging and statistics
+  - Per-client filtering rules
+  - Parental controls
+  - Safe browsing protection
+  - DNS over HTTPS (DoH)
+  - DNS over TLS (DoT)
+  - DNS over QUIC (DoQ)
+  - DNSCrypt support
+
+dns:
+  role: primary
+  note: |
+    After deployment and configuration, AdGuard Home becomes the
+    primary DNS server for the home network.
+
+    DNS Resolution Flow:
+    1. Client queries 192.168.x.x:53 (Mac mini IP)
+    2. AdGuard filters ads/trackers, applies rewrites
+    3. *.home domains rewritten to local IPs
+    4. Other queries forwarded to upstream (Cloudflare, Quad9)
+
+    Migration Steps (see README.md):
+    1. Deploy AdGuard Home
+    2. Configure DNS rewrites for *.home
+    3. Test with individual device
+    4. Update router DHCP to use AdGuard as DNS
+    5. Verify all devices using AdGuard
+
+privacy:
+  note: |
+    Query logs contain DNS queries from all network devices.
+    Consider retention period and who has access.
+    Recommended: 7-day retention, admin-only access.
