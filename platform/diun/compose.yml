@@ -1,0 +1,26 @@
+services:
+  diun:
+    image: crazymax/diun:4.28.0
+    container_name: diun
+    restart: unless-stopped
+    hostname: diun
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./config/diun.yml:/diun.yml:ro
+      - ./data:/data
+    environment:
+      - TZ=America/New_York
+      - LOG_LEVEL=info
+      - LOG_JSON=false
+    networks:
+      - caddy-net
+    healthcheck:
+      test: ["CMD", "diun", "version"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+networks:
+  caddy-net:
+    external: true

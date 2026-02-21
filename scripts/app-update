@@ -52,13 +52,17 @@ fi
 info "Step 1: Current image configuration:"
 grep "image:" "$COMPOSE_FILE" | sed 's/^/  /'
 
-# Step 2: Prompt for confirmation
+# Step 2: Prompt for confirmation (skip if AUTO_APPROVE=true)
 CURRENT_VERSION=$(grep "image:" "$COMPOSE_FILE" | head -1 | sed 's/.*://')
 warn "Step 2: About to update $APP from $CURRENT_VERSION to $NEW_VERSION"
-read -r -p "Continue? [y/N] " CONFIRM
-if [[ ! "$CONFIRM" =~ ^[Yy]$ ]]; then
-  info "Update cancelled."
-  exit 0
+if [[ "${AUTO_APPROVE:-false}" != "true" ]]; then
+  read -r -p "Continue? [y/N] " CONFIRM
+  if [[ ! "$CONFIRM" =~ ^[Yy]$ ]]; then
+    info "Update cancelled."
+    exit 0
+  fi
+else
+  info "AUTO_APPROVE=true, proceeding without confirmation"
 fi
 
 # Step 3: Pre-update backup
@@ -88,7 +92,12 @@ echo "$HEALTH"
 
 if echo "$HEALTH" | grep -qE "(Exit|unhealthy|dead)"; then
   error "Health check failed — containers may be unhealthy"
-  read -r -p "Rollback to $CURRENT_VERSION? [y/N] " ROLLBACK
+  if [[ "${AUTO_APPROVE:-false}" != "true" ]]; then
+    read -r -p "Rollback to $CURRENT_VERSION? [y/N] " ROLLBACK
+  else
+    ROLLBACK="y"
+    warn "AUTO_APPROVE=true, auto-rolling back to $CURRENT_VERSION"
+  fi
   if [[ "$ROLLBACK" =~ ^[Yy]$ ]]; then
     warn "Rolling back to $CURRENT_VERSION..."
     if [[ "$(uname)" == "Darwin" ]]; then

@@ -40,6 +40,12 @@
         icon: mdi-shield-check
         server: my-docker
         container: adguard
+    - Update Manager:
+        href: http://updates.home
+        description: Container Updates
+        icon: mdi-update
+        server: my-docker
+        container: update-handler
 
 - Applications:
     - Immich:

@@ -1,0 +1,30 @@
+services:
+  update-handler:
+    image: python:3.12-slim
+    container_name: update-handler
+    restart: unless-stopped
+    hostname: update-handler
+    working_dir: /app
+    command: python handler.py
+    volumes:
+      - ./handler.py:/app/handler.py:ro
+      - ./templates:/app/templates:ro
+      - ./data:/app/data
+      - ../../scripts:/scripts:ro  # Access to app-update script
+      - /var/run/docker.sock:/var/run/docker.sock  # For triggering updates
+    environment:
+      - HOMELAB_ROOT=/homelab
+      - DB_PATH=/app/data/updates.db
+      - PORT=8080
+    networks:
+      - caddy-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+networks:
+  caddy-net:
+    external: true

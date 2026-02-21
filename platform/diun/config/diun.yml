@@ -1,0 +1,32 @@
+# Diun Configuration
+# Docker Image Update Notifier - detects when container images have updates available
+
+watch:
+  # Watch configuration
+  workers: 10
+  schedule: "0 */2 * * *"  # Check every 2 hours
+  firstCheckNotif: false    # Don't notify on first run (all images would be "new")
+
+defaults:
+  # Watch all containers by default unless explicitly excluded
+  watchRepo: true
+  notifyOn:
+    - new        # Notify when new tag detected
+    - update     # Notify when existing tag updated
+
+providers:
+  docker:
+    # Watch Docker containers
+    watchByDefault: true
+    # Exclude containers that shouldn't trigger updates
+    watchStopped: false
+
+notif:
+  webhook:
+    # Send webhook to update-handler service
+    endpoint: "http://update-handler:8080/webhook"
+    method: POST
+    headers:
+      Content-Type: application/json
+      User-Agent: Diun
+    timeout: 10s
