@@ -6,7 +6,7 @@ from uuid import UUID
 
 from app.database import get_db
 from app.models.mission import Mission
-from app.models.suggested_action import SuggestedAction
+from app.models.suggested_action import SuggestedAction, ActionStatus
 from app.schemas.suggested_action import (
     SuggestedActionCreate,
     SuggestedActionUpdate,
@@ -30,9 +30,13 @@ async def list_suggested_actions(
 
     query = db.query(SuggestedAction).filter(SuggestedAction.mission_id == mission_id)
 
-    # Filter by status if provided
+    # Filter by status if provided (normalize to enum values)
     if status:
-        query = query.filter(SuggestedAction.status == status)
+        try:
+            normalized_status = ActionStatus(status.lower())
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid status: {status}")
+        query = query.filter(SuggestedAction.status == normalized_status)
 
     actions = query.order_by(
         SuggestedAction.priority.desc(),

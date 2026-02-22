@@ -1,6 +1,6 @@
 """Suggested action model."""
 from sqlalchemy import Column, String, Text, Enum, ForeignKey, DateTime, func
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, ENUM as PG_ENUM
 from sqlalchemy.orm import relationship
 import uuid
 import enum
@@ -40,14 +40,14 @@ class SuggestedAction(Base):
     mission_id = Column(UUID(as_uuid=True), ForeignKey("missions.id", ondelete="CASCADE"), nullable=False)
 
     # Action details
-    type = Column(Enum(ActionType), nullable=False, default=ActionType.AGENT_ACTION)
+    type = Column(PG_ENUM(ActionType, name='actiontype', create_type=False, values_callable=lambda x: [e.value for e in x]), nullable=False, default=ActionType.AGENT_ACTION)
     title = Column(String(200), nullable=False)
     description = Column(Text, nullable=False)
     reasoning = Column(Text)  # Why the agent suggests this
 
     # Organization
-    priority = Column(Enum(ActionPriority), nullable=False, default=ActionPriority.MEDIUM)
-    status = Column(Enum(ActionStatus), nullable=False, default=ActionStatus.PENDING)
+    priority = Column(PG_ENUM(ActionPriority, name='actionpriority', create_type=False, values_callable=lambda x: [e.value for e in x]), nullable=False, default=ActionPriority.MEDIUM)
+    status = Column(PG_ENUM(ActionStatus, name='actionstatus', create_type=False, values_callable=lambda x: [e.value for e in x]), nullable=False, default=ActionStatus.PENDING)
     related_goal = Column(Text)  # Link to specific mission goal
 
     # Timestamps
