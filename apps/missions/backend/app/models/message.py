@@ -33,3 +33,4 @@ class Message(Base):
 
     # Relationships
     mission = relationship("Mission", back_populates="messages")
+    attachments = relationship("MessageAttachment", back_populates="message", cascade="all, delete-orphan")

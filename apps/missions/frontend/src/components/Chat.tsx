@@ -79,6 +79,32 @@ export const Chat: React.FC<ChatProps> = ({ missionId }) => {
               ]
             }
           })
+        } else if (data.type === 'tool_start') {
+          // Tool execution started
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: data.tool_id,
+              role: 'tool',
+              tool_name: data.tool_name,
+              content: '',
+              isExecuting: true,
+            },
+          ])
+        } else if (data.type === 'tool_result') {
+          // Tool execution completed
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === data.tool_id
+                ? {
+                    ...msg,
+                    content: JSON.stringify(data.result, null, 2),
+                    isExecuting: false,
+                    success: data.success,
+                  }
+                : msg
+            )
+          )
         } else if (data.type === 'done') {
           // Streaming complete
           setMessages((prev) => {
@@ -210,20 +236,38 @@ export const Chat: React.FC<ChatProps> = ({ missionId }) => {
         ) : (
           messages.map((msg, index) => (
             <div key={msg.id + index} className={`message message-${msg.role}`}>
-              <div className="message-header">
-                <strong>{msg.role === 'user' ? 'You' : 'AI Agent'}</strong>
-                {msg.model_used && (
-                  <span className="message-model">{msg.model_used}</span>
-                )}
-              </div>
-              <div className="message-content">
-                {msg.content}
-                {msg.isStreaming && <span className="cursor">▊</span>}
-              </div>
-              {msg.input_tokens && msg.output_tokens && (
-                <div className="message-tokens">
-                  {msg.input_tokens} in • {msg.output_tokens} out
+              {msg.role === 'tool' ? (
+                <div className="tool-call">
+                  <div className="tool-header">
+                    🔧 {msg.tool_name}
+                    {msg.isExecuting && <span className="tool-spinner">⏳</span>}
+                    {!msg.isExecuting && msg.success && <span className="tool-status success">✓</span>}
+                    {!msg.isExecuting && !msg.success && <span className="tool-status error">✗</span>}
+                  </div>
+                  {!msg.isExecuting && (
+                    <div className={`tool-result ${msg.success ? 'success' : 'error'}`}>
+                      <pre>{msg.content}</pre>
+                    </div>
+                  )}
                 </div>
+              ) : (
+                <>
+                  <div className="message-header">
+                    <strong>{msg.role === 'user' ? 'You' : 'AI Agent'}</strong>
+                    {msg.model_used && (
+                      <span className="message-model">{msg.model_used}</span>
+                    )}
+                  </div>
+                  <div className="message-content">
+                    {msg.content}
+                    {msg.isStreaming && <span className="cursor">▊</span>}
+                  </div>
+                  {msg.input_tokens && msg.output_tokens && (
+                    <div className="message-tokens">
+                      {msg.input_tokens} in • {msg.output_tokens} out
+                    </div>
+                  )}
+                </>
               )}
             </div>
           ))

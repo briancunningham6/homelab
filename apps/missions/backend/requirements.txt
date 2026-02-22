@@ -28,3 +28,11 @@ openai==1.54.4
 
 # Utilities
 python-dotenv==1.0.1
+
+# Document parsing (Phase 3)
+PyPDF2==3.0.1
+pytesseract==0.3.13
+python-docx==1.1.2
+pandas==2.2.3
+openpyxl==3.1.5
+Pillow==11.0.0
