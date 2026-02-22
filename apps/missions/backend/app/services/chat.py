@@ -46,11 +46,25 @@ class ChatService:
                 .first()
             )
 
-        # Fallback to first enabled provider if mission doesn't have one
+        # Fallback to first enabled provider WITH API key if mission doesn't have one
         if not provider:
             provider = (
                 self.db.query(LLMProvider)
-                .filter(LLMProvider.is_enabled == True)
+                .filter(
+                    LLMProvider.is_enabled == True,
+                    LLMProvider.api_key_encrypted.isnot(None),
+                )
+                .first()
+            )
+
+        # If mission-selected provider has no key, fallback to a configured provider
+        if provider and not provider.api_key_encrypted:
+            provider = (
+                self.db.query(LLMProvider)
+                .filter(
+                    LLMProvider.is_enabled == True,
+                    LLMProvider.api_key_encrypted.isnot(None),
+                )
                 .first()
             )
 
