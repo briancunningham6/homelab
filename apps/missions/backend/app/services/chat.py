@@ -660,7 +660,6 @@ If no good suggestions, return empty array: []"""
                 response = await client.chat.completions.create(
                     model=provider.default_model or "gpt-4-turbo-preview",
                     messages=[{"role": "user", "content": suggestion_prompt}],
-                    max_tokens=1024,
                 )
                 content = response.choices[0].message.content
                 print(f"[SUGGESTIONS] OpenAI response: {content[:200]}...")
