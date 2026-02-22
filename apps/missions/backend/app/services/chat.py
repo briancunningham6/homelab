@@ -599,9 +599,9 @@ Use these tools when appropriate to provide better assistance. Always explain wh
         # DEBUG: Log message count for troubleshooting
         print(f"[SUGGESTIONS] Message count: {message_count}")
 
-        # Trigger on messages 2, 4, 6, 8, etc. (every 2nd message after the 2nd)
-        # This is more aggressive for testing - adjust to every 3 or 4 once working
-        if message_count < 2 or (message_count - 2) % 2 != 0:
+        # Trigger every 2nd turn, aligned with observed odd counts in active chats
+        # (e.g. 65, 67, 69...) so we don't permanently miss generation.
+        if message_count < 3 or message_count % 2 == 0:
             print(f"[SUGGESTIONS] Skipping generation (count={message_count})")
             return []
 
