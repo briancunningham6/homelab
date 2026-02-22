@@ -128,10 +128,49 @@
   color: #333;
 }
 
+.file-name-button {
+  flex: 1;
+  text-align: left;
+  background: none;
+  border: none;
+  font-weight: 500;
+  color: #2196F3;
+  cursor: pointer;
+  padding: 0;
+  font-size: 14px;
+  text-decoration: underline;
+  transition: color 0.2s;
+}
+
+.file-name-button:hover {
+  color: #1976D2;
+}
+
 .file-size,
 .file-date {
   font-size: 13px;
   color: #666;
+}
+
+.btn-small {
+  padding: 6px 12px;
+  font-size: 13px;
+  border-radius: 6px;
+}
+
+.btn-danger {
+  background-color: #F44336;
+  color: white;
+  border: none;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background-color: #D32F2F;
+}
+
+.btn-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .empty-files {

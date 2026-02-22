@@ -2,7 +2,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
-from app.api import missions, files, health, providers, messages, chat
+from app.api import missions, files, health, providers, messages, chat, suggested_actions
 
 app = FastAPI(
     title="Missions",
@@ -24,6 +24,7 @@ app.add_middleware(
 app.include_router(health.router, prefix="/api", tags=["health"])
 app.include_router(missions.router, prefix="/api/missions", tags=["missions"])
 app.include_router(files.router, prefix="/api/missions", tags=["files"])
+app.include_router(suggested_actions.router, prefix="/api/missions", tags=["suggested-actions"])
 app.include_router(providers.router)
 app.include_router(messages.router)
 app.include_router(chat.router)

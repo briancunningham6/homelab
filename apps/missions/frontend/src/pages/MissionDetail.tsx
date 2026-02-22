@@ -1,7 +1,8 @@
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { useMission, useMissionFiles, useDeleteMission } from '../hooks/useMissions'
+import { useMission, useMissionFiles, useDeleteMission, useDeleteFile } from '../hooks/useMissions'
 import { FileUpload } from '../components/FileUpload'
 import { Chat } from '../components/Chat'
+import SuggestedActions from '../components/SuggestedActions'
 import '../styles/MissionDetail.css'
 
 export const MissionDetail: React.FC = () => {
@@ -11,6 +12,7 @@ export const MissionDetail: React.FC = () => {
   const { data: mission, isLoading: missionLoading, error: missionError } = useMission(id!)
   const { data: files, isLoading: filesLoading } = useMissionFiles(id!)
   const deleteMission = useDeleteMission()
+  const deleteFile = useDeleteFile()
 
   const handleDelete = async () => {
     if (!confirm('Are you sure you want to delete this mission? This cannot be undone.')) {
@@ -24,6 +26,23 @@ export const MissionDetail: React.FC = () => {
       console.error('Failed to delete mission:', error)
       alert('Failed to delete mission. Please try again.')
     }
+  }
+
+  const handleDeleteFile = async (fileId: string, fileName: string) => {
+    if (!confirm(`Delete ${fileName}?`)) {
+      return
+    }
+
+    try {
+      await deleteFile.mutateAsync({ missionId: id!, fileId })
+    } catch (error) {
+      console.error('Failed to delete file:', error)
+      alert('Failed to delete file. Please try again.')
+    }
+  }
+
+  const handleViewFile = (fileId: string) => {
+    window.open(`/api/missions/${id}/files/${fileId}`, '_blank')
   }
 
   if (missionLoading) {
@@ -113,11 +132,25 @@ export const MissionDetail: React.FC = () => {
               {files.map((file) => (
                 <div key={file.id} className="file-item">
                   <span className="file-icon">📄</span>
-                  <span className="file-name">{file.original_name}</span>
+                  <button
+                    className="file-name-button"
+                    onClick={() => handleViewFile(file.id)}
+                    title="Click to view/download"
+                  >
+                    {file.original_name}
+                  </button>
                   <span className="file-size">{formatBytes(file.size)}</span>
                   <span className="file-date">
                     {new Date(file.uploaded_at).toLocaleDateString()}
                   </span>
+                  <button
+                    className="btn btn-small btn-danger"
+                    onClick={() => handleDeleteFile(file.id, file.original_name)}
+                    disabled={deleteFile.isPending}
+                    title="Delete file"
+                  >
+                    🗑️
+                  </button>
                 </div>
               ))}
             </div>
@@ -131,6 +164,7 @@ export const MissionDetail: React.FC = () => {
         <section className="mission-section">
           <h2>Chat with AI Agent</h2>
           <Chat missionId={id!} />
+          <SuggestedActions missionId={id!} />
         </section>
       </div>
     </div>

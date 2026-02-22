@@ -41,3 +41,4 @@ class Mission(Base):
     llm_provider = relationship("LLMProvider", back_populates="missions")
     files = relationship("MissionFile", back_populates="mission", cascade="all, delete-orphan")
     messages = relationship("Message", back_populates="mission", cascade="all, delete-orphan")
+    suggested_actions = relationship("SuggestedAction", back_populates="mission", cascade="all, delete-orphan")

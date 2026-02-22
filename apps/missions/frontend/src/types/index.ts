@@ -82,3 +82,36 @@ export interface MissionUpdate {
   check_interval?: string
   status?: string
 }
+
+export type ActionType = 'user_action' | 'agent_action' | 'info_request'
+export type ActionPriority = 'high' | 'medium' | 'low'
+export type ActionStatus = 'pending' | 'accepted' | 'deferred' | 'dismissed' | 'completed'
+
+export interface SuggestedAction {
+  id: string
+  mission_id: string
+  type: ActionType
+  title: string
+  description: string
+  reasoning?: string
+  priority: ActionPriority
+  status: ActionStatus
+  related_goal?: string
+  suggested_at: string
+  updated_at?: string
+  completed_at?: string
+}
+
+export interface SuggestedActionCreate {
+  type: ActionType
+  title: string
+  description: string
+  reasoning?: string
+  priority?: ActionPriority
+  related_goal?: string
+}
+
+export interface SuggestedActionUpdate {
+  status?: ActionStatus
+  completed_at?: string
+}

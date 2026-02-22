@@ -1,5 +1,13 @@
 import axios from 'axios'
-import type { Mission, MissionCreate, MissionUpdate, MissionFile } from '../types'
+import type {
+  Mission,
+  MissionCreate,
+  MissionUpdate,
+  MissionFile,
+  SuggestedAction,
+  SuggestedActionCreate,
+  SuggestedActionUpdate,
+} from '../types'
 
 // Use same-origin API path in browser (proxied by Vite/Caddy)
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
@@ -69,4 +77,32 @@ export const downloadFile = async (missionId: string, fileId: string): Promise<B
 
 export const deleteFile = async (missionId: string, fileId: string): Promise<void> => {
   await apiClient.delete(`/missions/${missionId}/files/${fileId}`)
+}
+
+// Suggested Actions
+export const getSuggestedActions = async (missionId: string, status?: string): Promise<SuggestedAction[]> => {
+  const params = status ? { status } : {}
+  const response = await apiClient.get(`/missions/${missionId}/suggested-actions`, { params })
+  return response.data
+}
+
+export const createSuggestedAction = async (
+  missionId: string,
+  data: SuggestedActionCreate
+): Promise<SuggestedAction> => {
+  const response = await apiClient.post(`/missions/${missionId}/suggested-actions`, data)
+  return response.data
+}
+
+export const updateSuggestedAction = async (
+  missionId: string,
+  actionId: string,
+  data: SuggestedActionUpdate
+): Promise<SuggestedAction> => {
+  const response = await apiClient.patch(`/missions/${missionId}/suggested-actions/${actionId}`, data)
+  return response.data
+}
+
+export const deleteSuggestedAction = async (missionId: string, actionId: string): Promise<void> => {
+  await apiClient.delete(`/missions/${missionId}/suggested-actions/${actionId}`)
 }
