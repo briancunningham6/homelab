@@ -1,6 +1,6 @@
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useState } from 'react'
-import { useMission, useMissionFiles, useDeleteMission, useDeleteFile, useUpdateMission } from '../hooks/useMissions'
+import { useMission, useMissionFiles, useDeleteMission, useDeleteFile, useUpdateMission, useSuggestedActions } from '../hooks/useMissions'
 import { FileUpload } from '../components/FileUpload'
 import { Chat } from '../components/Chat'
 import SuggestedActions from '../components/SuggestedActions'
@@ -23,9 +23,12 @@ export const MissionDetail: React.FC = () => {
 
   const { data: mission, isLoading: missionLoading, error: missionError } = useMission(id!)
   const { data: files, isLoading: filesLoading } = useMissionFiles(id!)
+  const { data: pendingActions } = useSuggestedActions(id!, 'pending')
   const deleteMission = useDeleteMission()
   const deleteFile = useDeleteFile()
   const updateMission = useUpdateMission()
+
+  const hasPendingSuggestions = pendingActions && pendingActions.length > 0
 
   const handleDelete = async () => {
     if (!confirm('Are you sure you want to delete this mission? This cannot be undone.')) {
@@ -191,6 +194,7 @@ export const MissionDetail: React.FC = () => {
           onClick={() => setActiveTab('agent')}
         >
           Agent
+          {hasPendingSuggestions && <span className="suggestion-indicator"></span>}
         </button>
       </div>
 
@@ -299,9 +303,13 @@ export const MissionDetail: React.FC = () => {
         )}
 
         {activeTab === 'agent' && (
-          <div className="agent-tab">
-            <Chat missionId={id!} />
-            <SuggestedActions missionId={id!} />
+          <div className="agent-tab-layout">
+            <div className="agent-chat-section">
+              <Chat missionId={id!} />
+            </div>
+            <div className="agent-suggestions-section">
+              <SuggestedActions missionId={id!} />
+            </div>
           </div>
         )}
       </div>

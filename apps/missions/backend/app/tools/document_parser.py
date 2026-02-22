@@ -80,19 +80,63 @@ class DocumentParserTool(BaseTool):
                         },
                     )
 
-                # For now, return a placeholder
-                # In full implementation, this would use:
-                # - PyPDF2 for PDFs
-                # - Pillow + pytesseract for OCR on images
-                # - python-docx for Word documents
-                # - pandas for Excel/CSV
+                # Extract text based on file type
+                FILES_DIR = Path("/app/data/files")
+                file_path = FILES_DIR / file_obj.storage_path
+
+                if not file_path.exists():
+                    return ToolResult(
+                        success=False,
+                        error=f"File not found at {file_obj.storage_path}",
+                    )
+
+                extracted_text = None
+                mime_type = file_obj.mime_type or ""
+
+                # PDF files
+                if mime_type == "application/pdf" or file_obj.original_name.lower().endswith('.pdf'):
+                    extracted_text = self._extract_from_pdf(file_path, extraction_type)
+
+                # Images (for OCR)
+                elif mime_type.startswith('image/'):
+                    extracted_text = self._extract_from_image(file_path)
+
+                # Word documents
+                elif mime_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" or file_obj.original_name.lower().endswith('.docx'):
+                    extracted_text = self._extract_from_docx(file_path)
+
+                # Plain text
+                elif mime_type.startswith('text/') or file_obj.original_name.lower().endswith('.txt'):
+                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                        extracted_text = f.read()
+
+                # CSV/Excel
+                elif file_obj.original_name.lower().endswith(('.csv', '.xlsx', '.xls')):
+                    extracted_text = self._extract_from_spreadsheet(file_path, extraction_type)
+
+                else:
+                    return ToolResult(
+                        success=False,
+                        error=f"Unsupported file type: {mime_type or 'unknown'}",
+                    )
+
+                if not extracted_text:
+                    return ToolResult(
+                        success=False,
+                        error="No text could be extracted from the file",
+                    )
+
+                # Cache the extracted text
+                file_obj.extracted_text = extracted_text
+                db.commit()
+
                 return ToolResult(
                     success=True,
                     data={
-                        "text": file_obj.extracted_text or "",
+                        "text": extracted_text,
                         "filename": file_obj.original_name,
                         "cached": False,
-                        "note": "Document parsing will be fully implemented in Phase 3",
+                        "char_count": len(extracted_text),
                     },
                     metadata={
                         "file_id": str(file_obj.id),
@@ -109,3 +153,79 @@ class DocumentParserTool(BaseTool):
                 success=False,
                 error=f"Document parsing failed: {str(e)}",
             )
+
+    def _extract_from_pdf(self, file_path: Path, extraction_type: str) -> str:
+        """Extract text from PDF using PyPDF2."""
+        try:
+            from PyPDF2 import PdfReader
+
+            reader = PdfReader(str(file_path))
+            text_parts = []
+
+            for page_num, page in enumerate(reader.pages, 1):
+                try:
+                    page_text = page.extract_text()
+                    if page_text.strip():
+                        if extraction_type == "structured":
+                            text_parts.append(f"--- Page {page_num} ---\n{page_text}")
+                        else:
+                            text_parts.append(page_text)
+                except Exception as e:
+                    text_parts.append(f"[Error extracting page {page_num}: {str(e)}]")
+
+            return "\n\n".join(text_parts)
+
+        except Exception as e:
+            raise Exception(f"PDF extraction failed: {str(e)}")
+
+    def _extract_from_image(self, file_path: Path) -> str:
+        """Extract text from image using OCR (pytesseract)."""
+        try:
+            import pytesseract
+            from PIL import Image
+
+            image = Image.open(str(file_path))
+            text = pytesseract.image_to_string(image)
+            return text
+
+        except ImportError:
+            raise Exception("OCR not available. Install pytesseract and Tesseract-OCR.")
+        except Exception as e:
+            raise Exception(f"Image OCR failed: {str(e)}")
+
+    def _extract_from_docx(self, file_path: Path) -> str:
+        """Extract text from Word document."""
+        try:
+            from docx import Document
+
+            doc = Document(str(file_path))
+            paragraphs = [para.text for para in doc.paragraphs if para.text.strip()]
+            return "\n\n".join(paragraphs)
+
+        except Exception as e:
+            raise Exception(f"DOCX extraction failed: {str(e)}")
+
+    def _extract_from_spreadsheet(self, file_path: Path, extraction_type: str) -> str:
+        """Extract data from CSV or Excel files."""
+        try:
+            import pandas as pd
+
+            # Read the file
+            if str(file_path).lower().endswith('.csv'):
+                df = pd.read_csv(str(file_path))
+            else:
+                df = pd.read_excel(str(file_path))
+
+            # Convert to text representation
+            if extraction_type == "structured":
+                # Include column headers and preserve structure
+                return df.to_string(index=False)
+            elif extraction_type == "tables":
+                # Markdown table format
+                return df.to_markdown(index=False)
+            else:
+                # Simple text extraction
+                return df.to_csv(index=False)
+
+        except Exception as e:
+            raise Exception(f"Spreadsheet extraction failed: {str(e)}")

@@ -595,7 +595,8 @@ Use these tools when appropriate to provide better assistance. Always explain wh
         """
         # Only generate suggestions every few messages to avoid spam
         message_count = len(recent_messages)
-        if message_count < 3 or message_count % 4 != 0:
+        # Trigger on messages 3, 6, 9, 12, etc. (every 3rd message after the 3rd)
+        if message_count < 3 or (message_count - 3) % 3 != 0:
             return []
 
         # Build context for suggestion generation

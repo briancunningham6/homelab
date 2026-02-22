@@ -91,6 +91,25 @@
   background: #f5f9ff;
 }
 
+.suggestion-indicator {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  background-color: #4CAF50;
+  border-radius: 50%;
+  margin-left: 8px;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
 /* Tab Content */
 .tab-content {
   animation: fadeIn 0.2s ease-in;
@@ -107,11 +126,39 @@
   }
 }
 
-.overview-tab,
-.agent-tab {
+.overview-tab {
   display: flex;
   flex-direction: column;
   gap: 24px;
+}
+
+.agent-tab-layout {
+  display: grid;
+  grid-template-columns: 1fr 400px;
+  gap: 24px;
+  align-items: start;
+}
+
+.agent-chat-section {
+  min-width: 0;
+}
+
+.agent-suggestions-section {
+  position: sticky;
+  top: 24px;
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
+}
+
+@media (max-width: 1200px) {
+  .agent-tab-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .agent-suggestions-section {
+    position: static;
+    max-height: none;
+  }
 }
 
 .mission-section {
