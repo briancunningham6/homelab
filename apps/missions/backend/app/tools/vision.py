@@ -211,7 +211,7 @@ class VisionTool(BaseTool):
         client = openai.AsyncOpenAI(api_key=api_key)
 
         response = await client.chat.completions.create(
-            model="gpt-4-vision-preview",
+            model="gpt-4o",  # GPT-4 Omni has built-in vision capabilities
             messages=[
                 {
                     "role": "user",
