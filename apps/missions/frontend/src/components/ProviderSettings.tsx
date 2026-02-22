@@ -25,7 +25,7 @@ export const ProviderSettings: React.FC = () => {
 
   const loadProviders = async () => {
     try {
-      const response = await fetch('/api/providers')
+      const response = await fetch('/api/providers/')
       if (!response.ok) throw new Error('Failed to load providers')
       const data = await response.json()
       setProviders(data)

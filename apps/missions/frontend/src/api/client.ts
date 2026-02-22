@@ -1,7 +1,8 @@
 import axios from 'axios'
 import type { Mission, MissionCreate, MissionUpdate, MissionFile } from '../types'
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+// Use same-origin API path in browser (proxied by Vite/Caddy)
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -12,38 +13,38 @@ const apiClient = axios.create({
 
 // Health check
 export const getHealth = async () => {
-  const response = await apiClient.get('/api/health')
+  const response = await apiClient.get('/health')
   return response.data
 }
 
 // Mission endpoints
 export const getMissions = async (): Promise<Mission[]> => {
-  const response = await apiClient.get('/api/missions')
+  const response = await apiClient.get('/missions/')
   return response.data
 }
 
 export const getMission = async (id: string): Promise<Mission> => {
-  const response = await apiClient.get(`/api/missions/${id}`)
+  const response = await apiClient.get(`/missions/${id}`)
   return response.data
 }
 
 export const createMission = async (data: MissionCreate): Promise<Mission> => {
-  const response = await apiClient.post('/api/missions', data)
+  const response = await apiClient.post('/missions/', data)
   return response.data
 }
 
 export const updateMission = async (id: string, data: MissionUpdate): Promise<Mission> => {
-  const response = await apiClient.put(`/api/missions/${id}`, data)
+  const response = await apiClient.put(`/missions/${id}`, data)
   return response.data
 }
 
 export const deleteMission = async (id: string): Promise<void> => {
-  await apiClient.delete(`/api/missions/${id}`)
+  await apiClient.delete(`/missions/${id}`)
 }
 
 // File endpoints
 export const getMissionFiles = async (missionId: string): Promise<MissionFile[]> => {
-  const response = await apiClient.get(`/api/missions/${missionId}/files`)
+  const response = await apiClient.get(`/missions/${missionId}/files`)
   return response.data
 }
 
@@ -51,7 +52,7 @@ export const uploadFile = async (missionId: string, file: File): Promise<Mission
   const formData = new FormData()
   formData.append('file', file)
 
-  const response = await apiClient.post(`/api/missions/${missionId}/files`, formData, {
+  const response = await apiClient.post(`/missions/${missionId}/files`, formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
     },
@@ -60,12 +61,12 @@ export const uploadFile = async (missionId: string, file: File): Promise<Mission
 }
 
 export const downloadFile = async (missionId: string, fileId: string): Promise<Blob> => {
-  const response = await apiClient.get(`/api/missions/${missionId}/files/${fileId}`, {
+  const response = await apiClient.get(`/missions/${missionId}/files/${fileId}`, {
     responseType: 'blob',
   })
   return response.data
 }
 
 export const deleteFile = async (missionId: string, fileId: string): Promise<void> => {
-  await apiClient.delete(`/api/missions/${missionId}/files/${fileId}`)
+  await apiClient.delete(`/missions/${missionId}/files/${fileId}`)
 }

@@ -1,10 +1,10 @@
 import { Routes, Route } from 'react-router-dom'
-import Layout from './components/Layout'
-import Dashboard from './pages/Dashboard'
-import MissionDetail from './pages/MissionDetail'
-import MissionCreate from './pages/MissionCreate'
-import Settings from './pages/Settings'
-import NotFound from './pages/NotFound'
+import { Layout } from './components/Layout'
+import { Dashboard } from './pages/Dashboard'
+import { MissionDetail } from './pages/MissionDetail'
+import { MissionCreate } from './pages/MissionCreate'
+import { Settings } from './pages/Settings'
+import { NotFound } from './pages/NotFound'
 
 function App() {
   return (

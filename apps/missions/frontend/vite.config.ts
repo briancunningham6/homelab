@@ -14,10 +14,11 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5173,
     strictPort: true,
+    allowedHosts: ['missions.home', 'localhost', '127.0.0.1'],
     proxy: {
       '/api': {
-        target: process.env.VITE_API_URL || 'http://missions-backend:8000',
-        changeOrigin: true,
+        target: 'http://missions-backend:8000',
+        changeOrigin: false,
       },
     },
   },

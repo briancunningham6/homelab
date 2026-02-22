@@ -20,9 +20,6 @@ services:
     networks:
       - caddy-net
       - postgres-net
-    depends_on:
-      postgres:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
       interval: 30s
@@ -38,7 +35,7 @@ services:
     restart: unless-stopped
     hostname: missions-frontend
     environment:
-      - VITE_API_URL=http://missions-backend:8000
+      - VITE_API_URL=/api
     volumes:
       - ./frontend:/app
       - /app/node_modules
@@ -47,7 +44,7 @@ services:
     depends_on:
       - backend
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5173"]
+      test: ["CMD", "sh", "-c", "wget -q --spider --header='Host: missions.home' http://127.0.0.1:5173"]
       interval: 30s
       timeout: 10s
       retries: 3
