@@ -199,7 +199,7 @@ Your role is to help the user accomplish these goals. Be helpful, proactive, and
                 model=model,
                 messages=openai_messages,
                 stream=True,
-                max_tokens=4096,
+                max_completion_tokens=4096,
             )
 
             async for chunk in stream:
