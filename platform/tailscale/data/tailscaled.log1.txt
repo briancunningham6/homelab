@@ -1,0 +1,1 @@
+{"logtail":{"client_time":"2026-02-22T17:16:35.791345803Z","proc_id":3017680390,"proc_seq":92},"text":"health(warnable=warming-up): ok\n"}

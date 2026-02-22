@@ -595,9 +595,17 @@ Use these tools when appropriate to provide better assistance. Always explain wh
         """
         # Only generate suggestions every few messages to avoid spam
         message_count = len(recent_messages)
-        # Trigger on messages 3, 6, 9, 12, etc. (every 3rd message after the 3rd)
-        if message_count < 3 or (message_count - 3) % 3 != 0:
+
+        # DEBUG: Log message count for troubleshooting
+        print(f"[SUGGESTIONS] Message count: {message_count}")
+
+        # Trigger on messages 2, 4, 6, 8, etc. (every 2nd message after the 2nd)
+        # This is more aggressive for testing - adjust to every 3 or 4 once working
+        if message_count < 2 or (message_count - 2) % 2 != 0:
+            print(f"[SUGGESTIONS] Skipping generation (count={message_count})")
             return []
+
+        print(f"[SUGGESTIONS] Generating suggestions for mission {mission.id}...")
 
         # Build context for suggestion generation
         conversation_context = "\n".join([
@@ -636,6 +644,7 @@ If no good suggestions, return empty array: []"""
             api_key = decrypt_api_key(provider.api_key_encrypted)
 
             if provider.name == "claude":
+                print(f"[SUGGESTIONS] Using Claude provider")
                 client = anthropic.AsyncAnthropic(api_key=api_key)
                 response = await client.messages.create(
                     model=provider.default_model or "claude-sonnet-4-20250514",
@@ -643,8 +652,10 @@ If no good suggestions, return empty array: []"""
                     messages=[{"role": "user", "content": suggestion_prompt}],
                 )
                 content = response.content[0].text
+                print(f"[SUGGESTIONS] Claude response: {content[:200]}...")
 
             elif provider.name == "openai":
+                print(f"[SUGGESTIONS] Using OpenAI provider")
                 client = openai.AsyncOpenAI(api_key=api_key)
                 response = await client.chat.completions.create(
                     model=provider.default_model or "gpt-4-turbo-preview",
@@ -652,7 +663,9 @@ If no good suggestions, return empty array: []"""
                     max_tokens=1024,
                 )
                 content = response.choices[0].message.content
+                print(f"[SUGGESTIONS] OpenAI response: {content[:200]}...")
             else:
+                print(f"[SUGGESTIONS] Unsupported provider: {provider.name}")
                 return []
 
             # Parse JSON response
@@ -662,29 +675,39 @@ If no good suggestions, return empty array: []"""
             elif "```" in content:
                 content = content.split("```")[1].split("```")[0].strip()
 
+            print(f"[SUGGESTIONS] Parsing JSON from: {content[:100]}...")
             suggestions = json.loads(content)
+            print(f"[SUGGESTIONS] Parsed {len(suggestions)} suggestions")
 
             # Validate and filter suggestions
             valid_suggestions = []
             for suggestion in suggestions:
                 if not isinstance(suggestion, dict):
+                    print(f"[SUGGESTIONS] Skipping non-dict suggestion: {suggestion}")
                     continue
 
                 # Validate required fields
                 if not all(k in suggestion for k in ["type", "title", "description", "priority"]):
+                    print(f"[SUGGESTIONS] Missing required fields in: {suggestion}")
                     continue
 
                 # Validate enum values
                 if suggestion["type"] not in ["user_action", "agent_action", "info_request"]:
+                    print(f"[SUGGESTIONS] Invalid type: {suggestion['type']}")
                     continue
                 if suggestion["priority"] not in ["high", "medium", "low"]:
+                    print(f"[SUGGESTIONS] Invalid priority: {suggestion['priority']}")
                     continue
 
                 valid_suggestions.append(suggestion)
+                print(f"[SUGGESTIONS] Valid suggestion: {suggestion['title']}")
 
+            print(f"[SUGGESTIONS] Returning {len(valid_suggestions)} valid suggestions")
             return valid_suggestions[:3]  # Max 3 suggestions
 
         except Exception as e:
-            # Silently fail - suggestions are optional
-            print(f"Error generating suggestions: {e}")
+            # Log the error for debugging
+            print(f"[SUGGESTIONS] Error generating suggestions: {e}")
+            import traceback
+            traceback.print_exc()
             return []
