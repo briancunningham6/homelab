@@ -89,12 +89,13 @@ class ChatService:
         self.db.commit()
 
         # Link attachments to this message if present
+        # Also automatically analyze images with vision tool
         if attachment_ids:
             from app.models.message_attachment import MessageAttachment
+            from app.models.mission_file import MissionFile
 
             for file_id in attachment_ids:
                 # Get the mission file to copy metadata
-                from app.models.mission_file import MissionFile
                 mission_file = self.db.query(MissionFile).filter(
                     MissionFile.id == UUID(file_id)
                 ).first()
@@ -109,6 +110,30 @@ class ChatService:
                         storage_path=mission_file.storage_path,
                     )
                     self.db.add(attachment)
+
+                    # Automatically analyze images with vision tool
+                    if mission_file.mime_type and mission_file.mime_type.startswith('image/'):
+                        yield {"type": "tool_start", "tool_name": "analyze_image", "tool_id": f"auto-vision-{file_id}"}
+
+                        # Execute vision analysis
+                        vision_result = await tool_registry.execute(
+                            "analyze_image",
+                            file_id=file_id,
+                            prompt="Describe this image in detail. Extract any text, numbers, dates, or key information visible in the image."
+                        )
+
+                        # Save vision result to attachment
+                        if vision_result.success:
+                            attachment.description = vision_result.data.get("description", "")
+                            attachment.vision_model = vision_result.data.get("model", "")
+
+                        yield {
+                            "type": "tool_result",
+                            "tool_name": "analyze_image",
+                            "tool_id": f"auto-vision-{file_id}",
+                            "success": vision_result.success,
+                            "result": vision_result.data if vision_result.success else vision_result.error,
+                        }
 
             self.db.commit()
 
@@ -137,6 +162,8 @@ class ChatService:
 
     def _build_system_prompt(self, mission: Mission) -> str:
         """Build system prompt from mission context."""
+        from app.models.mission_file import MissionFile
+
         prompt = f"""You are an AI agent working on the following mission:
 
 Mission: {mission.name}
@@ -153,6 +180,18 @@ You have access to tools that can help you:
 - parse_document: Extract text from uploaded documents (PDFs, images with OCR)
 
 Use these tools when appropriate to provide better assistance. Always explain what you're doing when using a tool."""
+
+        # Add context files information
+        context_files = self.db.query(MissionFile).filter(
+            MissionFile.mission_id == mission.id
+        ).all()
+
+        if context_files:
+            prompt += "\n\nContext Files Available:\n"
+            prompt += "The user has uploaded the following files as context for this mission. You can use the analyze_image or parse_document tools to extract information from these files:\n"
+            for file in context_files:
+                file_type = "Image" if file.mime_type and file.mime_type.startswith("image/") else "Document"
+                prompt += f"- {file.original_name} ({file_type}, uploaded {file.uploaded_at.strftime('%Y-%m-%d')}, ID: {file.id})\n"
 
         return prompt
 

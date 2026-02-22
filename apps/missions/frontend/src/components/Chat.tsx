@@ -24,6 +24,7 @@ export const Chat: React.FC<ChatProps> = ({ missionId }) => {
   const [isStreaming, setIsStreaming] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [attachments, setAttachments] = useState<File[]>([])
+  const [isDragging, setIsDragging] = useState(false)
 
   const wsRef = useRef<WebSocket | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -183,6 +184,29 @@ export const Chat: React.FC<ChatProps> = ({ missionId }) => {
     }
   }
 
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+
+    const files = e.dataTransfer.files
+    if (files && files.length > 0) {
+      setAttachments((prev) => [...prev, ...Array.from(files)])
+    }
+  }
+
   const removeAttachment = (index: number) => {
     setAttachments((prev) => prev.filter((_, i) => i !== index))
   }
@@ -313,7 +337,12 @@ export const Chat: React.FC<ChatProps> = ({ missionId }) => {
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="chat-input-container">
+      <div
+        className={`chat-input-container ${isDragging ? 'dragging' : ''}`}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
         <input
           type="file"
           ref={fileInputRef}
