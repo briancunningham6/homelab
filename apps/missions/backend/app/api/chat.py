@@ -74,7 +74,11 @@ async def chat_websocket(
                         # Save file
                         file_data = base64.b64decode(att["data"])
                         file_id = UUID(hex=uuid.uuid4().hex)
-                        storage_path = f"{mission_id}/{file_id}{Path(att['filename']).suffix}"
+
+                        # Generate unique filename
+                        file_ext = Path(att["filename"]).suffix
+                        unique_filename = f"{file_id}{file_ext}"
+                        storage_path = f"{mission_id}/{unique_filename}"
                         file_path = FILES_DIR / storage_path
 
                         with open(file_path, "wb") as f:
@@ -84,6 +88,7 @@ async def chat_websocket(
                         mission_file = MissionFile(
                             id=file_id,
                             mission_id=mission_id,
+                            filename=unique_filename,
                             original_name=att["filename"],
                             storage_path=storage_path,
                             mime_type=att.get("mime_type"),
