@@ -1,0 +1,85 @@
+#!/bin/bash
+# Configure AdGuard Home DNS rewrites for homelab services
+# This script adds DNS rewrites for all .home domains to point to the Mac mini
+
+set -e
+
+# Configuration
+ADGUARD_URL="http://localhost:3000"
+LAN_IP="192.168.0.199"
+
+# Colors for output
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+echo -e "${BLUE}=== AdGuard Home DNS Configuration ===${NC}"
+echo ""
+echo "This script will add DNS rewrites for all .home domains"
+echo "Target IP: ${LAN_IP}"
+echo ""
+
+# Check if AdGuard Home is accessible
+echo -e "${BLUE}Checking AdGuard Home...${NC}"
+if ! curl -s -f "${ADGUARD_URL}" > /dev/null 2>&1; then
+    echo -e "${RED}ERROR: Cannot reach AdGuard Home at ${ADGUARD_URL}${NC}"
+    echo "Make sure AdGuard Home is running: docker ps | grep adguard"
+    exit 1
+fi
+echo -e "${GREEN}✓ AdGuard Home is accessible${NC}"
+echo ""
+
+# List of services to configure
+SERVICES=(
+    "home.home"
+    "dockge.home"
+    "status.home"
+    "login.home"
+    "immich.home"
+    "missions.home"
+    "adguard.home"
+)
+
+echo -e "${BLUE}Adding DNS rewrites...${NC}"
+echo ""
+
+# Note: AdGuard Home API requires authentication
+# You'll need to get your credentials from AdGuard Home UI
+echo "To complete the setup, add these DNS rewrites in AdGuard Home UI:"
+echo ""
+echo "1. Open: http://adguard.home (or http://localhost:3000)"
+echo "2. Go to: Filters → DNS rewrites"
+echo "3. Click: Add DNS rewrite"
+echo ""
+echo "Add the following rewrites:"
+echo ""
+
+for service in "${SERVICES[@]}"; do
+    echo -e "  ${GREEN}${service}${NC} → ${LAN_IP}"
+done
+
+echo ""
+echo "Or use this wildcard rewrite (recommended):"
+echo -e "  ${GREEN}*.home${NC} → ${LAN_IP}"
+echo ""
+
+echo -e "${BLUE}=== Tailscale DNS Configuration ===${NC}"
+echo ""
+echo "Next, configure Tailscale DNS:"
+echo ""
+echo "1. Go to: https://login.tailscale.com/admin/dns"
+echo "2. Click: Add nameserver"
+echo "3. Enter: 100.73.223.8 (your Mac mini Tailscale IP)"
+echo "4. Click: Save"
+echo ""
+echo "Optional but recommended - Add split DNS:"
+echo "5. Click: Add split DNS nameserver"
+echo "6. Nameserver: 100.73.223.8"
+echo "7. Restrict to domain: home"
+echo "8. Click: Save"
+echo ""
+echo "9. Ensure 'Override local DNS' is enabled"
+echo ""
+
+echo -e "${GREEN}Done! Follow the instructions above to complete the setup.${NC}"
