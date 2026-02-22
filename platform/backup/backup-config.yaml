@@ -137,6 +137,16 @@ services:
       post_backup:
         - rm -f ${APP_DIR}/data/matrix-db-dump.sql
 
+  - name: missions
+    path: apps/missions
+    tier: 4
+    description: "AI agent management system"
+    backup:
+      include:
+        - data/files/          # Uploaded mission context files
+      exclude: []
+    # Note: Chat history and mission metadata are in shared postgres, backed up separately
+
   # ══════════════════════════════════════════════════════════════════════════
   # TIER 5: AI Services (optional, can be rebuilt)
   # ══════════════════════════════════════════════════════════════════════════
