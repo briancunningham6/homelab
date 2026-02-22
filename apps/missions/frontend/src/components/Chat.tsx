@@ -27,6 +27,7 @@ export const Chat: React.FC<ChatProps> = ({ missionId }) => {
   const [isDragging, setIsDragging] = useState(false)
 
   const wsRef = useRef<WebSocket | null>(null)
+  const reconnectTimerRef = useRef<number | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -39,38 +40,39 @@ export const Chat: React.FC<ChatProps> = ({ missionId }) => {
     scrollToBottom()
   }, [messages])
 
-  // WebSocket connection
+  // WebSocket connection (auto-reconnect)
   useEffect(() => {
+    let cancelled = false
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const wsUrl = `${protocol}//${window.location.host}/api/missions/${missionId}/chat`
 
-    const ws = new WebSocket(wsUrl)
+    const connect = () => {
+      if (cancelled) return
 
-    ws.onopen = () => {
-      setIsConnected(true)
-      setError(null)
-      console.log('WebSocket connected')
-    }
+      const ws = new WebSocket(wsUrl)
+      wsRef.current = ws
 
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data)
+      ws.onopen = () => {
+        setIsConnected(true)
+        setError(null)
+        console.log('WebSocket connected')
+      }
 
-        if (data.type === 'user_message_saved') {
-          // User message has been saved
-          console.log('User message saved:', data.message_id)
-        } else if (data.type === 'content') {
-          // Streaming content from assistant
-          setMessages((prev) => {
-            const lastMsg = prev[prev.length - 1]
-            if (lastMsg && lastMsg.isStreaming) {
-              // Append to existing streaming message
-              return [
-                ...prev.slice(0, -1),
-                { ...lastMsg, content: lastMsg.content + data.content },
-              ]
-            } else {
-              // Start new streaming message
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data)
+
+          if (data.type === 'user_message_saved') {
+            console.log('User message saved:', data.message_id)
+          } else if (data.type === 'content') {
+            setMessages((prev) => {
+              const lastMsg = prev[prev.length - 1]
+              if (lastMsg && lastMsg.isStreaming) {
+                return [
+                  ...prev.slice(0, -1),
+                  { ...lastMsg, content: lastMsg.content + data.content },
+                ]
+              }
               return [
                 ...prev,
                 {
@@ -80,78 +82,80 @@ export const Chat: React.FC<ChatProps> = ({ missionId }) => {
                   isStreaming: true,
                 },
               ]
-            }
-          })
-        } else if (data.type === 'tool_start') {
-          // Tool execution started
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: data.tool_id,
-              role: 'tool',
-              tool_name: data.tool_name,
-              content: '',
-              isExecuting: true,
-            },
-          ])
-        } else if (data.type === 'tool_result') {
-          // Tool execution completed
-          setMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === data.tool_id
-                ? {
-                    ...msg,
-                    content: JSON.stringify(data.result, null, 2),
-                    isExecuting: false,
-                    success: data.success,
-                  }
-                : msg
+            })
+          } else if (data.type === 'tool_start') {
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: data.tool_id,
+                role: 'tool',
+                tool_name: data.tool_name,
+                content: '',
+                isExecuting: true,
+              },
+            ])
+          } else if (data.type === 'tool_result') {
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === data.tool_id
+                  ? {
+                      ...msg,
+                      content: JSON.stringify(data.result, null, 2),
+                      isExecuting: false,
+                      success: data.success,
+                    }
+                  : msg
+              )
             )
-          )
-        } else if (data.type === 'done') {
-          // Streaming complete
-          setMessages((prev) => {
-            const lastMsg = prev[prev.length - 1]
-            if (lastMsg && lastMsg.isStreaming) {
-              return [
-                ...prev.slice(0, -1),
-                {
-                  ...lastMsg,
-                  id: data.message_id,
-                  isStreaming: false,
-                  input_tokens: data.input_tokens,
-                  output_tokens: data.output_tokens,
-                  model_used: data.model,
-                },
-              ]
-            }
-            return prev
-          })
-          setIsStreaming(false)
-        } else if (data.type === 'error') {
-          setError(data.content)
-          setIsStreaming(false)
+          } else if (data.type === 'done') {
+            setMessages((prev) => {
+              const lastMsg = prev[prev.length - 1]
+              if (lastMsg && lastMsg.isStreaming) {
+                return [
+                  ...prev.slice(0, -1),
+                  {
+                    ...lastMsg,
+                    id: data.message_id,
+                    isStreaming: false,
+                    input_tokens: data.input_tokens,
+                    output_tokens: data.output_tokens,
+                    model_used: data.model,
+                  },
+                ]
+              }
+              return prev
+            })
+            setIsStreaming(false)
+          } else if (data.type === 'error') {
+            setError(data.content)
+            setIsStreaming(false)
+          }
+        } catch (err) {
+          console.error('Failed to parse WebSocket message:', err)
         }
-      } catch (err) {
-        console.error('Failed to parse WebSocket message:', err)
+      }
+
+      ws.onerror = (event) => {
+        console.error('WebSocket error:', event)
+      }
+
+      ws.onclose = () => {
+        setIsConnected(false)
+        if (!cancelled) {
+          setError('Connection lost. Reconnecting...')
+          reconnectTimerRef.current = window.setTimeout(connect, 1500)
+        }
       }
     }
 
-    ws.onerror = (event) => {
-      console.error('WebSocket error:', event)
-      setError('Connection error. Please try again.')
-      setIsConnected(false)
-    }
-
-    ws.onclose = () => {
-      console.log('WebSocket closed')
-      setIsConnected(false)
-    }
-
-    wsRef.current = ws
+    connect()
 
     return () => {
-      ws.close()
+      cancelled = true
+      if (reconnectTimerRef.current) {
+        window.clearTimeout(reconnectTimerRef.current)
+      }
+      wsRef.current?.close()
     }
   }, [missionId])
 
