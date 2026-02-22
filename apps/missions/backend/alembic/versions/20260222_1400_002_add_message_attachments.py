@@ -1,7 +1,7 @@
 """add message attachments table
 
 Revision ID: 20260222_1400_002
-Revises: 20260221_1900_001
+Revises: 001
 Create Date: 2026-02-22 14:00:00.000000
 
 """
@@ -13,7 +13,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = '20260222_1400_002'
-down_revision: Union[str, None] = '20260221_1900_001'
+down_revision: Union[str, None] = '001'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
