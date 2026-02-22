@@ -37,12 +37,14 @@ class VisionTool(BaseTool):
             ),
         ]
 
-    async def execute(self, file_id: str, prompt: str = None, **kwargs) -> ToolResult:
+    async def execute(self, file_id: str, prompt: str = None, db_session=None, llm_provider=None, **kwargs) -> ToolResult:
         """Analyze an image file using vision AI.
 
         Args:
             file_id: UUID of the image file
             prompt: Optional specific question about the image
+            db_session: Optional database session to use
+            llm_provider: Optional LLM provider to use
 
         Returns:
             ToolResult with vision analysis
@@ -57,8 +59,10 @@ class VisionTool(BaseTool):
 
             FILES_DIR = Path("/app/data/files")
 
-            # Get file from database
-            db = SessionLocal()
+            # Use provided session or create new one
+            db = db_session if db_session else SessionLocal()
+            should_close_db = db_session is None
+
             try:
                 file_obj = db.query(MissionFile).filter(
                     MissionFile.id == uuid.UUID(file_id)
@@ -77,15 +81,18 @@ class VisionTool(BaseTool):
                         error=f"File {file_obj.original_name} is not an image (type: {file_obj.mime_type})",
                     )
 
-                # Get enabled vision-capable provider
-                provider = db.query(LLMProvider).filter(
-                    LLMProvider.is_enabled == True
-                ).first()
+                # Use provided provider or get enabled vision-capable provider
+                provider = llm_provider
+                if not provider:
+                    provider = db.query(LLMProvider).filter(
+                        LLMProvider.is_enabled == True,
+                        LLMProvider.api_key_encrypted.isnot(None),
+                    ).first()
 
                 if not provider or not provider.api_key_encrypted:
                     return ToolResult(
                         success=False,
-                        error="No LLM provider configured for vision analysis",
+                        error="No LLM provider configured for vision analysis. Please add an API key in Settings.",
                     )
 
                 # Read image file
@@ -139,7 +146,8 @@ class VisionTool(BaseTool):
                 )
 
             finally:
-                db.close()
+                if should_close_db:
+                    db.close()
 
         except Exception as e:
             return ToolResult(

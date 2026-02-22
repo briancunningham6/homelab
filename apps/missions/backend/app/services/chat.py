@@ -115,11 +115,13 @@ class ChatService:
                     if mission_file.mime_type and mission_file.mime_type.startswith('image/'):
                         yield {"type": "tool_start", "tool_name": "analyze_image", "tool_id": f"auto-vision-{file_id}"}
 
-                        # Execute vision analysis
+                        # Execute vision analysis with current session and provider
                         vision_result = await tool_registry.execute(
                             "analyze_image",
                             file_id=file_id,
-                            prompt="Describe this image in detail. Extract any text, numbers, dates, or key information visible in the image."
+                            prompt="Describe this image in detail. Extract any text, numbers, dates, or key information visible in the image.",
+                            db_session=self.db,
+                            llm_provider=provider
                         )
 
                         # Save vision result to attachment
