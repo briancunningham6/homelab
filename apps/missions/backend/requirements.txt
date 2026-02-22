@@ -29,6 +29,9 @@ openai==1.54.4
 # Utilities
 python-dotenv==1.0.1
 
+# Background jobs
+APScheduler==3.10.4
+
 # Document parsing (Phase 3)
 PyPDF2==3.0.1
 pytesseract==0.3.13

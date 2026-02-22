@@ -711,3 +711,199 @@ If no good suggestions, return empty array: []"""
             import traceback
             traceback.print_exc()
             return []
+
+    async def autonomous_check(self, mission: Mission) -> dict:
+        """Perform an autonomous check of a mission.
+
+        This method is called by the scheduler to review mission progress,
+        analyze context, and generate suggestions without user interaction.
+
+        Args:
+            mission: The mission to check
+
+        Returns:
+            dict with keys: success, suggestions_count, summary
+        """
+        from datetime import datetime, timezone
+
+        print(f"[AUTONOMOUS] Starting check for mission: {mission.name}")
+
+        try:
+            # Get provider
+            provider = mission.llm_provider
+            if not provider:
+                provider = self.db.query(LLMProvider).filter(
+                    LLMProvider.is_enabled == True,
+                    LLMProvider.api_key_encrypted.isnot(None),
+                ).first()
+
+            if not provider or not provider.api_key_encrypted:
+                print(f"[AUTONOMOUS] No LLM provider available for mission {mission.id}")
+                return {
+                    "success": False,
+                    "suggestions_count": 0,
+                    "summary": "No LLM provider configured",
+                }
+
+            # Get recent messages for context
+            recent_messages = (
+                self.db.query(Message)
+                .filter(Message.mission_id == mission.id)
+                .order_by(Message.created_at.desc())
+                .limit(10)
+                .all()
+            )
+
+            # Build context summary
+            conversation_summary = ""
+            if recent_messages:
+                conversation_summary = "\n".join([
+                    f"[{msg.created_at.strftime('%Y-%m-%d %H:%M')}] {msg.role}: {msg.content[:150]}..."
+                    for msg in reversed(recent_messages[-5:])
+                ])
+            else:
+                conversation_summary = "No conversation history yet."
+
+            # Get mission files for context
+            file_context = ""
+            if mission.files:
+                file_context = "\n".join([
+                    f"- {file.original_name} ({file.mime_type})"
+                    for file in mission.files[:5]
+                ])
+
+            # Create autonomous check prompt
+            check_prompt = f"""You are performing an autonomous check on this mission. Review the current status and suggest next actions if needed.
+
+Mission: {mission.name}
+Description: {mission.description}
+Goals: {mission.goals}
+Status: {mission.status}
+Check Interval: {mission.check_interval}
+
+Recent Activity:
+{conversation_summary}
+
+Available Context Files:
+{file_context if file_context else "None"}
+
+Your task:
+1. Assess progress toward mission goals
+2. Identify if any action is needed
+3. Generate 0-3 concrete suggestions (only if truly valuable)
+
+Return a JSON object with:
+{{
+  "status_summary": "Brief (1-2 sentences) assessment of current mission status",
+  "progress_assessment": "Brief statement about progress toward goals",
+  "suggestions": [
+    {{"type": "user_action/agent_action/info_request", "title": "...", "description": "...", "reasoning": "...", "priority": "high/medium/low", "related_goal": "..."}}
+  ]
+}}
+
+IMPORTANT:
+- Only suggest actions if there's something meaningful to do
+- If mission is on track and no action needed, return empty suggestions array
+- Be concise and actionable
+- Return ONLY valid JSON"""
+
+            # Call LLM
+            api_key = decrypt_api_key(provider.api_key_encrypted)
+
+            if provider.name == "claude":
+                client = anthropic.AsyncAnthropic(api_key=api_key)
+                response = await client.messages.create(
+                    model=provider.default_model or "claude-sonnet-4-20250514",
+                    max_tokens=1024,
+                    messages=[{"role": "user", "content": check_prompt}],
+                )
+                content = response.content[0].text
+
+            elif provider.name == "openai":
+                client = openai.AsyncOpenAI(api_key=api_key)
+                response = await client.chat.completions.create(
+                    model=provider.default_model or "gpt-4-turbo-preview",
+                    messages=[{"role": "user", "content": check_prompt}],
+                    max_tokens=1024,
+                )
+                content = response.choices[0].message.content
+            else:
+                return {
+                    "success": False,
+                    "suggestions_count": 0,
+                    "summary": f"Unsupported provider: {provider.name}",
+                }
+
+            # Parse response
+            if "```json" in content:
+                content = content.split("```json")[1].split("```")[0].strip()
+            elif "```" in content:
+                content = content.split("```")[1].split("```")[0].strip()
+
+            result = json.loads(content)
+
+            # Extract suggestions and create them
+            suggestions = result.get("suggestions", [])
+            suggestions_count = 0
+
+            for suggestion in suggestions:
+                # Validate suggestion structure
+                if not all(k in suggestion for k in ["type", "title", "description", "priority"]):
+                    continue
+
+                # Check if similar suggestion already exists
+                existing = self.db.query(SuggestedAction).filter(
+                    SuggestedAction.mission_id == mission.id,
+                    SuggestedAction.title == suggestion["title"],
+                    SuggestedAction.status == ActionStatus.PENDING,
+                ).first()
+
+                if not existing:
+                    action = SuggestedAction(
+                        mission_id=mission.id,
+                        type=ActionType(suggestion["type"]),
+                        title=suggestion["title"],
+                        description=suggestion["description"],
+                        reasoning=suggestion.get("reasoning"),
+                        priority=ActionPriority(suggestion["priority"]),
+                        status=ActionStatus.PENDING,
+                        related_goal=suggestion.get("related_goal"),
+                    )
+                    self.db.add(action)
+                    suggestions_count += 1
+
+            # Update mission check timestamps
+            now = datetime.now(timezone.utc)
+            mission.last_checked_at = now
+
+            # Calculate next check time based on interval
+            from datetime import timedelta
+            if mission.check_interval == "hourly":
+                mission.next_check_at = now + timedelta(hours=1)
+            elif mission.check_interval == "daily":
+                mission.next_check_at = now + timedelta(days=1)
+            elif mission.check_interval == "weekly":
+                mission.next_check_at = now + timedelta(weeks=1)
+            # manual = no next check scheduled
+
+            self.db.commit()
+
+            summary = f"{result.get('status_summary', 'Check completed')} - {result.get('progress_assessment', 'Progress assessed')}"
+
+            print(f"[AUTONOMOUS] Check complete for {mission.name}: {suggestions_count} suggestions")
+
+            return {
+                "success": True,
+                "suggestions_count": suggestions_count,
+                "summary": summary,
+            }
+
+        except Exception as e:
+            print(f"[AUTONOMOUS] Error checking mission {mission.id}: {e}")
+            import traceback
+            traceback.print_exc()
+            return {
+                "success": False,
+                "suggestions_count": 0,
+                "summary": f"Check failed: {str(e)}",
+            }

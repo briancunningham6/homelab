@@ -1,14 +1,30 @@
 """Main FastAPI application."""
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 from app.config import settings
 from app.api import missions, files, health, providers, messages, chat, suggested_actions
+from app.services.scheduler import mission_scheduler
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Handle application lifespan events."""
+    # Startup
+    print("[APP] Starting application...")
+    mission_scheduler.start()
+    yield
+    # Shutdown
+    print("[APP] Shutting down application...")
+    mission_scheduler.shutdown()
+
 
 app = FastAPI(
     title="Missions",
     description="Persistent AI agent management system",
     version="0.1.0",
     debug=settings.debug,
+    lifespan=lifespan,
 )
 
 # CORS middleware
