@@ -101,13 +101,13 @@ export const MissionDetail: React.FC = () => {
           className={`tab ${activeTab === 'overview' ? 'active' : ''}`}
           onClick={() => setActiveTab('overview')}
         >
-          📋 Overview
+          Overview
         </button>
         <button
           className={`tab ${activeTab === 'agent' ? 'active' : ''}`}
           onClick={() => setActiveTab('agent')}
         >
-          🤖 Agent
+          Agent
         </button>
       </div>
 
