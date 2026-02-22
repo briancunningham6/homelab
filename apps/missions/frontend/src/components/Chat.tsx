@@ -23,9 +23,11 @@ export const Chat: React.FC<ChatProps> = ({ missionId }) => {
   const [isConnected, setIsConnected] = useState(false)
   const [isStreaming, setIsStreaming] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [attachments, setAttachments] = useState<File[]>([])
 
   const wsRef = useRef<WebSocket | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Auto-scroll to bottom
   const scrollToBottom = () => {
@@ -174,11 +176,25 @@ export const Chat: React.FC<ChatProps> = ({ missionId }) => {
     loadMessages()
   }, [missionId])
 
-  const handleSend = () => {
-    if (!input.trim() || !isConnected || isStreaming) return
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (files) {
+      setAttachments((prev) => [...prev, ...Array.from(files)])
+    }
+  }
+
+  const removeAttachment = (index: number) => {
+    setAttachments((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const handleSend = async () => {
+    if ((!input.trim() && attachments.length === 0) || !isConnected || isStreaming) return
 
     const userMessage = input.trim()
+    const filesToSend = [...attachments]
+
     setInput('')
+    setAttachments([])
 
     // Add user message to UI immediately
     setMessages((prev) => [
@@ -186,9 +202,30 @@ export const Chat: React.FC<ChatProps> = ({ missionId }) => {
       {
         id: 'pending',
         role: 'user',
-        content: userMessage,
+        content: userMessage + (filesToSend.length > 0 ? `\n[${filesToSend.length} file(s) attached]` : ''),
       },
     ])
+
+    // Convert files to base64
+    const fileData = await Promise.all(
+      filesToSend.map(async (file) => {
+        const base64 = await new Promise<string>((resolve) => {
+          const reader = new FileReader()
+          reader.onloadend = () => {
+            const result = reader.result as string
+            resolve(result.split(',')[1]) // Remove data:image/...;base64, prefix
+          }
+          reader.readAsDataURL(file)
+        })
+
+        return {
+          filename: file.name,
+          mime_type: file.type,
+          size: file.size,
+          data: base64,
+        }
+      })
+    )
 
     // Send to WebSocket
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
@@ -196,6 +233,7 @@ export const Chat: React.FC<ChatProps> = ({ missionId }) => {
         JSON.stringify({
           type: 'message',
           content: userMessage,
+          attachments: fileData,
         })
       )
       setIsStreaming(true)
@@ -276,26 +314,68 @@ export const Chat: React.FC<ChatProps> = ({ missionId }) => {
       </div>
 
       <div className="chat-input-container">
-        <textarea
-          className="chat-input"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyPress={handleKeyPress}
-          placeholder={
-            isConnected
-              ? 'Type your message... (Shift+Enter for new line)'
-              : 'Connecting to chat server...'
-          }
-          disabled={!isConnected || isStreaming}
-          rows={3}
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileSelect}
+          accept="image/*,application/pdf,.doc,.docx,.txt"
+          multiple
+          style={{ display: 'none' }}
         />
-        <button
-          className="btn btn-primary chat-send-btn"
-          onClick={handleSend}
-          disabled={!isConnected || isStreaming || !input.trim()}
-        >
-          {isStreaming ? 'Sending...' : 'Send'}
-        </button>
+
+        <div className="chat-input-wrapper">
+          {attachments.length > 0 && (
+            <div className="attachments-preview">
+              {attachments.map((file, index) => (
+                <div key={index} className="attachment-item">
+                  <span className="attachment-name">
+                    📎 {file.name}
+                  </span>
+                  <button
+                    className="attachment-remove"
+                    onClick={() => removeAttachment(index)}
+                    type="button"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="input-row">
+            <button
+              className="btn btn-secondary attach-btn"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={!isConnected || isStreaming}
+              title="Attach file"
+            >
+              📎
+            </button>
+
+            <textarea
+              className="chat-input"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyPress={handleKeyPress}
+              placeholder={
+                isConnected
+                  ? 'Type your message... (Shift+Enter for new line)'
+                  : 'Connecting to chat server...'
+              }
+              disabled={!isConnected || isStreaming}
+              rows={3}
+            />
+
+            <button
+              className="btn btn-primary chat-send-btn"
+              onClick={handleSend}
+              disabled={!isConnected || isStreaming || (!input.trim() && attachments.length === 0)}
+            >
+              {isStreaming ? 'Sending...' : 'Send'}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   )

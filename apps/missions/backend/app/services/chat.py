@@ -23,12 +23,14 @@ class ChatService:
         self,
         mission_id: UUID,
         user_message: str,
+        attachment_ids: list[str] = None,
     ) -> AsyncGenerator[dict, None]:
         """Stream chat response from LLM.
 
         Args:
             mission_id: Mission UUID
             user_message: User's message
+            attachment_ids: Optional list of file UUIDs attached to this message
 
         Yields:
             dict: Streaming chunks with type, content, and metadata
@@ -85,6 +87,30 @@ class ChatService:
         )
         self.db.add(user_msg)
         self.db.commit()
+
+        # Link attachments to this message if present
+        if attachment_ids:
+            from app.models.message_attachment import MessageAttachment
+
+            for file_id in attachment_ids:
+                # Get the mission file to copy metadata
+                from app.models.mission_file import MissionFile
+                mission_file = self.db.query(MissionFile).filter(
+                    MissionFile.id == UUID(file_id)
+                ).first()
+
+                if mission_file:
+                    attachment = MessageAttachment(
+                        message_id=user_msg.id,
+                        filename=mission_file.original_name,
+                        original_name=mission_file.original_name,
+                        mime_type=mission_file.mime_type,
+                        size_bytes=mission_file.size_bytes,
+                        storage_path=mission_file.storage_path,
+                    )
+                    self.db.add(attachment)
+
+            self.db.commit()
 
         yield {"type": "user_message_saved", "message_id": str(user_msg.id)}
 
