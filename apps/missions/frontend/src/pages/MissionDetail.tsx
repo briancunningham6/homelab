@@ -1,13 +1,17 @@
 import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useState } from 'react'
 import { useMission, useMissionFiles, useDeleteMission, useDeleteFile } from '../hooks/useMissions'
 import { FileUpload } from '../components/FileUpload'
 import { Chat } from '../components/Chat'
 import SuggestedActions from '../components/SuggestedActions'
 import '../styles/MissionDetail.css'
 
+type TabType = 'overview' | 'agent'
+
 export const MissionDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const [activeTab, setActiveTab] = useState<TabType>('overview')
 
   const { data: mission, isLoading: missionLoading, error: missionError } = useMission(id!)
   const { data: files, isLoading: filesLoading } = useMissionFiles(id!)
@@ -78,94 +82,114 @@ export const MissionDetail: React.FC = () => {
   return (
     <div className="mission-detail">
       <div className="page-header">
-        <div className="header-left">
-          <Link to="/" className="back-link">← Back to Dashboard</Link>
+        <div className="header-top">
+          <Link to="/" className="back-link">← Dashboard</Link>
+          <button className="btn btn-secondary btn-small" onClick={handleDelete} disabled={deleteMission.isPending}>
+            {deleteMission.isPending ? 'Deleting...' : 'Delete'}
+          </button>
+        </div>
+        <div className="header-main">
           <h1>{mission.name}</h1>
           <span className="mission-status-badge" style={{ backgroundColor: statusColor }}>
             {mission.status}
           </span>
         </div>
-        <div className="header-actions">
-          <button className="btn btn-secondary" onClick={handleDelete} disabled={deleteMission.isPending}>
-            {deleteMission.isPending ? 'Deleting...' : 'Delete Mission'}
-          </button>
-        </div>
       </div>
 
-      <div className="mission-content">
-        <section className="mission-section">
-          <h2>Description</h2>
-          <p>{mission.description}</p>
-        </section>
+      <div className="tabs">
+        <button
+          className={`tab ${activeTab === 'overview' ? 'active' : ''}`}
+          onClick={() => setActiveTab('overview')}
+        >
+          📋 Overview
+        </button>
+        <button
+          className={`tab ${activeTab === 'agent' ? 'active' : ''}`}
+          onClick={() => setActiveTab('agent')}
+        >
+          🤖 Agent
+        </button>
+      </div>
 
-        <section className="mission-section">
-          <h2>Goals</h2>
-          <p>{mission.goals}</p>
-        </section>
+      <div className="tab-content">
+        {activeTab === 'overview' && (
+          <div className="overview-tab">
+            <section className="mission-section">
+              <h2>Description</h2>
+              <p>{mission.description}</p>
+            </section>
 
-        <section className="mission-section">
-          <h2>Settings</h2>
-          <div className="settings-grid">
-            <div className="setting-item">
-              <strong>Check Interval:</strong>
-              <span>{mission.check_interval}</span>
-            </div>
-            <div className="setting-item">
-              <strong>Created:</strong>
-              <span>{new Date(mission.created_at).toLocaleDateString()}</span>
-            </div>
-            <div className="setting-item">
-              <strong>Last Updated:</strong>
-              <span>{new Date(mission.updated_at).toLocaleDateString()}</span>
-            </div>
-          </div>
-        </section>
+            <section className="mission-section">
+              <h2>Goals</h2>
+              <p>{mission.goals}</p>
+            </section>
 
-        <section className="mission-section">
-          <h2>Context Files ({files?.length || 0})</h2>
-          <FileUpload missionId={id!} />
-
-          {filesLoading ? (
-            <div className="files-loading">Loading files...</div>
-          ) : files && files.length > 0 ? (
-            <div className="files-list">
-              {files.map((file) => (
-                <div key={file.id} className="file-item">
-                  <span className="file-icon">📄</span>
-                  <button
-                    className="file-name-button"
-                    onClick={() => handleViewFile(file.id)}
-                    title="Click to view/download"
-                  >
-                    {file.original_name}
-                  </button>
-                  <span className="file-size">{formatBytes(file.size)}</span>
-                  <span className="file-date">
-                    {new Date(file.uploaded_at).toLocaleDateString()}
-                  </span>
-                  <button
-                    className="btn btn-small btn-danger"
-                    onClick={() => handleDeleteFile(file.id, file.original_name)}
-                    disabled={deleteFile.isPending}
-                    title="Delete file"
-                  >
-                    🗑️
-                  </button>
+            <section className="mission-section">
+              <h2>Settings</h2>
+              <div className="settings-grid">
+                <div className="setting-item">
+                  <strong>Check Interval:</strong>
+                  <span>{mission.check_interval}</span>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="empty-files">
-              <p>No files uploaded yet. Add context files to help the AI agent.</p>
-            </div>
-          )}
-        </section>
+                <div className="setting-item">
+                  <strong>Created:</strong>
+                  <span>{new Date(mission.created_at).toLocaleDateString()}</span>
+                </div>
+                <div className="setting-item">
+                  <strong>Last Updated:</strong>
+                  <span>{new Date(mission.updated_at).toLocaleDateString()}</span>
+                </div>
+              </div>
+            </section>
 
-        <section className="mission-section">
-          <h2>Chat with AI Agent</h2>
-          <Chat missionId={id!} />
-          <SuggestedActions missionId={id!} />
-        </section>
+            <section className="mission-section">
+              <h2>Context Files ({files?.length || 0})</h2>
+              <FileUpload missionId={id!} />
+
+              {filesLoading ? (
+                <div className="files-loading">Loading files...</div>
+              ) : files && files.length > 0 ? (
+                <div className="files-list">
+                  {files.map((file) => (
+                    <div key={file.id} className="file-item">
+                      <span className="file-icon">📄</span>
+                      <button
+                        className="file-name-button"
+                        onClick={() => handleViewFile(file.id)}
+                        title="Click to view/download"
+                      >
+                        {file.original_name}
+                      </button>
+                      <span className="file-size">{formatBytes(file.size)}</span>
+                      <span className="file-date">
+                        {new Date(file.uploaded_at).toLocaleDateString()}
+                      </span>
+                      <button
+                        className="btn btn-small btn-danger"
+                        onClick={() => handleDeleteFile(file.id, file.original_name)}
+                        disabled={deleteFile.isPending}
+                        title="Delete file"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-files">
+                  <p>No files uploaded yet. Add context files to help the AI agent.</p>
+                </div>
+              )}
+            </section>
+          </div>
+        )}
+
+        {activeTab === 'agent' && (
+          <div className="agent-tab">
+            <Chat missionId={id!} />
+            <SuggestedActions missionId={id!} />
+          </div>
+        )}
       </div>
     </div>
   )

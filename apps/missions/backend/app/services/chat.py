@@ -9,6 +9,7 @@ import json
 from app.models.mission import Mission
 from app.models.message import Message
 from app.models.llm_provider import LLMProvider
+from app.models.suggested_action import SuggestedAction, ActionType, ActionPriority, ActionStatus
 from app.utils.encryption import decrypt_api_key
 from app.tools import tool_registry
 
@@ -335,6 +336,34 @@ Use these tools when appropriate to provide better assistance. Always explain wh
             self.db.add(assistant_msg)
             self.db.commit()
 
+            # Generate suggested actions
+            mission = messages[0].mission if messages else None
+            if mission:
+                suggestions = await self._generate_suggestions(mission, provider, messages)
+
+                for suggestion in suggestions:
+                    # Check if similar suggestion already exists
+                    existing = self.db.query(SuggestedAction).filter(
+                        SuggestedAction.mission_id == mission.id,
+                        SuggestedAction.title == suggestion["title"],
+                        SuggestedAction.status == ActionStatus.PENDING,
+                    ).first()
+
+                    if not existing:
+                        action = SuggestedAction(
+                            mission_id=mission.id,
+                            type=ActionType(suggestion["type"]),
+                            title=suggestion["title"],
+                            description=suggestion["description"],
+                            reasoning=suggestion.get("reasoning"),
+                            priority=ActionPriority(suggestion["priority"]),
+                            status=ActionStatus.PENDING,
+                            related_goal=suggestion.get("related_goal"),
+                        )
+                        self.db.add(action)
+
+                self.db.commit()
+
             yield {
                 "type": "done",
                 "message_id": str(assistant_msg.id),
@@ -509,6 +538,34 @@ Use these tools when appropriate to provide better assistance. Always explain wh
             self.db.add(assistant_msg)
             self.db.commit()
 
+            # Generate suggested actions
+            mission = messages[0].mission if messages else None
+            if mission:
+                suggestions = await self._generate_suggestions(mission, provider, messages)
+
+                for suggestion in suggestions:
+                    # Check if similar suggestion already exists
+                    existing = self.db.query(SuggestedAction).filter(
+                        SuggestedAction.mission_id == mission.id,
+                        SuggestedAction.title == suggestion["title"],
+                        SuggestedAction.status == ActionStatus.PENDING,
+                    ).first()
+
+                    if not existing:
+                        action = SuggestedAction(
+                            mission_id=mission.id,
+                            type=ActionType(suggestion["type"]),
+                            title=suggestion["title"],
+                            description=suggestion["description"],
+                            reasoning=suggestion.get("reasoning"),
+                            priority=ActionPriority(suggestion["priority"]),
+                            status=ActionStatus.PENDING,
+                            related_goal=suggestion.get("related_goal"),
+                        )
+                        self.db.add(action)
+
+                self.db.commit()
+
             yield {
                 "type": "done",
                 "message_id": str(assistant_msg.id),
@@ -519,3 +576,114 @@ Use these tools when appropriate to provide better assistance. Always explain wh
 
         except Exception as e:
             yield {"type": "error", "content": f"OpenAI API error: {str(e)}"}
+
+    async def _generate_suggestions(
+        self,
+        mission: Mission,
+        provider: LLMProvider,
+        recent_messages: list[Message],
+    ) -> list[dict]:
+        """Generate suggested actions based on conversation context.
+
+        Args:
+            mission: The mission object
+            provider: LLM provider to use
+            recent_messages: Recent conversation messages
+
+        Returns:
+            list[dict]: List of suggested action data
+        """
+        # Only generate suggestions every few messages to avoid spam
+        message_count = len(recent_messages)
+        if message_count < 3 or message_count % 4 != 0:
+            return []
+
+        # Build context for suggestion generation
+        conversation_context = "\n".join([
+            f"{msg.role}: {msg.content[:200]}"
+            for msg in recent_messages[-6:]
+        ])
+
+        suggestion_prompt = f"""Based on this mission and recent conversation, suggest 1-3 concrete actions that would help accomplish the mission goals.
+
+Mission: {mission.name}
+Goals: {mission.goals}
+
+Recent conversation:
+{conversation_context}
+
+For each suggestion, provide:
+1. type: "user_action" (user should do), "agent_action" (AI should do), or "info_request" (need more info)
+2. title: Brief action title (max 50 chars)
+3. description: What should be done (max 200 chars)
+4. reasoning: Why this action would help (max 150 chars)
+5. priority: "high", "medium", or "low"
+6. related_goal: Which mission goal this relates to (optional)
+
+Return ONLY valid JSON array format:
+[{{"type": "user_action", "title": "...", "description": "...", "reasoning": "...", "priority": "high", "related_goal": "..."}}]
+
+Only suggest actions that are:
+- Concrete and actionable
+- Directly related to mission goals
+- Not already discussed or completed
+- Truly valuable (quality over quantity)
+
+If no good suggestions, return empty array: []"""
+
+        try:
+            api_key = decrypt_api_key(provider.api_key_encrypted)
+
+            if provider.name == "claude":
+                client = anthropic.AsyncAnthropic(api_key=api_key)
+                response = await client.messages.create(
+                    model=provider.default_model or "claude-sonnet-4-20250514",
+                    max_tokens=1024,
+                    messages=[{"role": "user", "content": suggestion_prompt}],
+                )
+                content = response.content[0].text
+
+            elif provider.name == "openai":
+                client = openai.AsyncOpenAI(api_key=api_key)
+                response = await client.chat.completions.create(
+                    model=provider.default_model or "gpt-4-turbo-preview",
+                    messages=[{"role": "user", "content": suggestion_prompt}],
+                    max_tokens=1024,
+                )
+                content = response.choices[0].message.content
+            else:
+                return []
+
+            # Parse JSON response
+            # Extract JSON from markdown code blocks if present
+            if "```json" in content:
+                content = content.split("```json")[1].split("```")[0].strip()
+            elif "```" in content:
+                content = content.split("```")[1].split("```")[0].strip()
+
+            suggestions = json.loads(content)
+
+            # Validate and filter suggestions
+            valid_suggestions = []
+            for suggestion in suggestions:
+                if not isinstance(suggestion, dict):
+                    continue
+
+                # Validate required fields
+                if not all(k in suggestion for k in ["type", "title", "description", "priority"]):
+                    continue
+
+                # Validate enum values
+                if suggestion["type"] not in ["user_action", "agent_action", "info_request"]:
+                    continue
+                if suggestion["priority"] not in ["high", "medium", "low"]:
+                    continue
+
+                valid_suggestions.append(suggestion)
+
+            return valid_suggestions[:3]  # Max 3 suggestions
+
+        except Exception as e:
+            # Silently fail - suggestions are optional
+            print(f"Error generating suggestions: {e}")
+            return []
