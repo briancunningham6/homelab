@@ -29,6 +29,7 @@ Self-hosted personal infrastructure focused on user control, repeatable operatio
 2. Git installed
 3. At least 40 GB free disk space recommended
 4. Optional: Tailscale auth key for remote access workflows
+5. Optional: OpenClaw for all sorts of devops and integration possibilities (security risks apply) 
 
 ### 2. Clone the repo
 
