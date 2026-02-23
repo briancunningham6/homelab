@@ -11,6 +11,24 @@
 - Keep setup simple and practical.
 - Reliability and long-term hardening are secondary for now.
 
+## Open Source Roadmap (Executive)
+Current direction for preparing this project for open source:
+
+1. Legal and governance baseline
+2. Security and CI baseline
+3. Documentation and support boundaries
+4. Testing and recovery confidence
+5. Onboarding and app ecosystem
+6. Community launch
+
+Launch criteria before public release:
+- Governance docs in place (`LICENSE`, `CODE_OF_CONDUCT.md`, `CONTRIBUTING.md`, issue/PR templates).
+- Security disclosure policy and baseline threat-model updates are published.
+- CI checks and security scans are required on pull requests.
+- Support policy and compatibility matrix are explicit.
+
+Detailed operational roadmap: `docs/open-source-roadmap.md`
+
 ## What this repo provides
 - `platform/`: Core infrastructure stacks (Caddy, Authentik, Homepage, Dockge, Tailscale, Uptime Kuma)
 - `apps/`: Application stacks (Immich, Copyparty, etc.)
