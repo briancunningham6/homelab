@@ -10,7 +10,6 @@ This is a homelab platform specification and implementation repo. It defines a s
 ~/homelab/
 ├── DESIGN.md                    # Core architecture document — read this first
 ├── CLAUDE.md                    # This file — project context for Claude Code
-├── tasks/                       # Agent task definitions for implementation work
 ├── platform/                    # Platform service stacks (Compose)
 │   ├── caddy/
 │   ├── dockge/
@@ -21,10 +20,11 @@ This is a homelab platform specification and implementation repo. It defines a s
 │   └── control-panel/
 ├── apps/                        # Application stacks (Compose)
 │   └── immich/
-├── ai/                          # AI service stacks (future)
+├── ai/                          # OpenClaw integration (skills, config templates)
 ├── backups/                     # Backup repositories
 ├── scripts/                     # Operational scripts
 └── docs/                        # All project documentation
+    └── tasks/                   # Agent task definitions for implementation work
 ```
 
 ## Key Documentation (read before implementing)
@@ -126,6 +126,6 @@ The following must be gitignored:
 
 ## Task System
 
-Implementation tasks are defined in `tasks/`. Each task file is a self-contained prompt for a Claude Code agent session. Tasks are numbered and can be run in parallel where dependencies allow.
+Implementation tasks are defined in `docs/tasks/`. Each task file is a self-contained prompt for a Claude Code agent session. Tasks are numbered and can be run in parallel where dependencies allow.
 
-See `tasks/README.md` for the execution plan and dependency map.
+See `docs/tasks/README.md` for the execution plan and dependency map.
