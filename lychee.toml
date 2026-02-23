@@ -1,0 +1,21 @@
+# Lychee link checker configuration
+
+# Accept these status codes as valid
+accept = [200, 206, 429]
+
+# Exclude patterns
+exclude = [
+  "*.home",
+  "localhost",
+  "127.0.0.1",
+  "example.com"
+]
+
+# Follow redirects
+max_redirects = 5
+
+# Timeout per request
+timeout = 20
+
+# Number of retries
+max_retries = 2
