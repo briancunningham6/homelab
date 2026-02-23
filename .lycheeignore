@@ -1,0 +1,10 @@
+# Ignore local development domains
+*.home
+localhost
+127.0.0.1
+
+# Ignore example placeholders
+example.com
+
+# Ignore GitHub user content URLs that may 404 in CI
+https://github.com/briancunningham6/homelab/assets/*
