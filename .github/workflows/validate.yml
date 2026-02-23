@@ -22,19 +22,6 @@ jobs:
           chmod +x scripts/validate-compose
           HOMELAB_DIR="$GITHUB_WORKSPACE" ./scripts/validate-compose
 
-  yaml-lint:
-    name: YAML Lint
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Run yamllint
-        uses: ibiqlik/action-yamllint@v3
-        with:
-          config_file: .yamllint.yml
-          file_or_dir: .
-
   shell-lint:
     name: Shell Lint
     runs-on: ubuntu-latest

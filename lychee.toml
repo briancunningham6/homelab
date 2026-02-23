@@ -3,12 +3,12 @@
 # Accept these status codes as valid
 accept = [200, 206, 429]
 
-# Exclude patterns
+# Exclude patterns (regex)
 exclude = [
-  "*.home",
-  "localhost",
-  "127.0.0.1",
-  "example.com"
+  '.*\.home',
+  'localhost',
+  '127\.0\.0\.1',
+  'example\.com'
 ]
 
 # Follow redirects
