@@ -1,0 +1,179 @@
+name: Validate
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  compose-validation:
+    name: Compose Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate all compose files
+        run: |
+          chmod +x scripts/validate-compose
+          HOMELAB_DIR="$GITHUB_WORKSPACE" ./scripts/validate-compose
+
+  yaml-lint:
+    name: YAML Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run yamllint
+        uses: ibiqlik/action-yamllint@v3
+        with:
+          config_file: .yamllint.yml
+          file_or_dir: .
+
+  shell-lint:
+    name: Shell Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Run shellcheck (error severity)
+        run: |
+          files=$(find scripts -type f ! -name "*.md" -print)
+          if [ -n "$files" ]; then
+            shellcheck -S error $files
+          fi
+
+  markdown-lint:
+    name: Markdown Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run markdownlint
+        uses: DavidAnson/markdownlint-cli2-action@v16
+        with:
+          globs: |
+            **/*.md
+
+  link-check:
+    name: Link Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run lychee link checker
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: --verbose --no-progress --accept 200,206,429 --exclude '\.home' --exclude 'localhost' --exclude '127\.0\.0\.1' "./**/*.md"
+
+  secret-scan:
+    name: Secret Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  dependency-scan:
+    name: Dependency Vulnerability Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0.25.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          severity: CRITICAL
+
+  image-scan:
+    name: Container Image Vulnerability Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Collect images from compose files
+        id: images
+        shell: bash
+        run: |
+          set -euo pipefail
+          find . -name "compose.yml" -type f -print0 \
+            | xargs -0 grep -hE '^[[:space:]]*image:[[:space:]]*' \
+            | sed -E 's/^[[:space:]]*image:[[:space:]]*//' \
+            | sed -E 's/[\"\x27]//g' \
+            | sed -E 's/[[:space:]]+#.*$//' \
+            | sed '/^\s*$/d' \
+            | grep -v '\${' \
+            | sort -u > /tmp/images.txt
+
+          if [ ! -s /tmp/images.txt ]; then
+            echo "No static image references found."
+            echo "has_images=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Images to scan:"
+          cat /tmp/images.txt
+          echo "has_images=true" >> "$GITHUB_OUTPUT"
+
+      - name: Scan images with Trivy
+        if: steps.images.outputs.has_images == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r image; do
+            echo "Scanning $image"
+            docker pull "$image"
+            docker run --rm \
+              -v /var/run/docker.sock:/var/run/docker.sock \
+              aquasec/trivy:0.57.1 image \
+              --ignore-unfixed \
+              --severity CRITICAL \
+              --exit-code 1 \
+              "$image"
+          done < /tmp/images.txt
+
+  sbom:
+    name: SBOM Generation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate CycloneDX SBOM
+        uses: aquasecurity/trivy-action@0.25.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: cyclonedx
+          output: sbom.cdx.json
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-cyclonedx
+          path: sbom.cdx.json

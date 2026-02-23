@@ -25,7 +25,7 @@ This is the detailed operational roadmap. For a concise executive summary, see `
 
 | Dimension | Status | Notes |
 |-----------|--------|-------|
-| **Legal/Governance** | Partial | LICENSE exists (MIT); CODE_OF_CONDUCT, CONTRIBUTING, and contributor workflow docs still missing |
+| **Legal/Governance** | Strong | LICENSE, CODE_OF_CONDUCT, CONTRIBUTING, issue templates, PR template, and SECURITY policy now present |
 | **Testing** | Weak | No automated tests, no CI/CD pipeline |
 | **Onboarding** | Partial | Good docs but no interactive setup wizard |
 | **App Management** | Manual | No unified UI for deploying community apps |
@@ -489,11 +489,11 @@ Define release process:
 | Task | Owner | Status |
 |------|-------|--------|
 | Confirm existing MIT LICENSE remains project choice | | Done |
-| Add CODE_OF_CONDUCT.md | | Not started |
-| Create CONTRIBUTING.md | | Not started |
-| Add issue templates | | Not started |
-| Add PR template | | Not started |
-| Add SECURITY.md (disclosure policy) | | Not started |
+| Add CODE_OF_CONDUCT.md | | Done |
+| Create CONTRIBUTING.md | | Done |
+| Add issue templates | | Done |
+| Add PR template | | Done |
+| Add SECURITY.md (disclosure policy) | | Done |
 
 **Exit criteria**:
 - All governance files exist at repository root or `.github/`.
@@ -503,18 +503,18 @@ Define release process:
 
 | Task | Owner | Status |
 |------|-------|--------|
-| Create CI/CD workflow | | Not started |
-| Add compose validation to CI | | Not started |
-| Add markdown link checking | | Not started |
-| Add shell script linting | | Not started |
-| Add YAML linting | | Not started |
-| Add secret scanning | | Not started |
-| Add dependency/image vulnerability scans | | Not started |
-| Add SBOM artifact generation | | Not started |
+| Create CI/CD workflow | | Done |
+| Add compose validation to CI | | Done |
+| Add markdown link checking | | Done |
+| Add shell script linting | | Done |
+| Add YAML linting | | Done |
+| Add secret scanning | | Done |
+| Add dependency/image vulnerability scans | | Done |
+| Add SBOM artifact generation | | Done |
 
 **Exit criteria**:
 - CI runs on every pull request.
-- Branch protection requires passing checks.
+- Branch protection requires passing checks (GitHub repository setting; pending manual enablement).
 - Security disclosure path is public and tested.
 
 ### Milestone C: Documentation and Support Boundaries
