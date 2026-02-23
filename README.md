@@ -62,13 +62,63 @@ HOMELAB_DIR=$(pwd) ./scripts/validate-compose
 - Homepage dashboard
 - Uptime Kuma health panel
 
+> Note: Before using most apps, create/sign in to an Authentik user account. App access is gated through Authentik SSO and that account is used for authentication across services.
+
 ### 7. Deploy your first app
 
 ```bash
 ./scripts/app-up immich
 ```
 
-### 8. Run day-2 operations
+### 8. Configure DNS for `.home` hostnames
+
+This platform uses Caddy virtual hosts such as `home.home`, `login.home`, and
+`immich.home`. Your client device must resolve these names to the homelab host.
+
+Option A: local `/etc/hosts` (simple, per-device)
+
+1. Find your homelab IP:
+   - local LAN: use your Mac mini LAN IP (for example `192.168.0.199`)
+   - remote via Tailscale: use your Mac mini Tailscale IP (for example `100.x.y.z`)
+2. Add host entries:
+
+```bash
+sudo tee -a /etc/hosts << 'EOF'
+# Homelab hostnames
+192.168.0.199 home.home
+192.168.0.199 login.home
+192.168.0.199 status.home
+192.168.0.199 dockge.home
+192.168.0.199 immich.home
+192.168.0.199 copyparty.home
+192.168.0.199 jellyfin.home
+192.168.0.199 backup.home
+192.168.0.199 adguard.home
+192.168.0.199 updates.home
+192.168.0.199 missions.home
+192.168.0.199 openclaw.home
+EOF
+```
+
+Option B: Tailscale Split DNS (recommended for multiple devices)
+
+1. Run a DNS resolver on the homelab host (AdGuard Home is used in this repo).
+2. Create a wildcard rewrite in AdGuard Home:
+   - `*.home -> <mac-mini-ip>`
+3. In Tailscale admin:
+   - DNS -> Nameservers -> add the homelab DNS resolver
+   - Restrict domain to `.home` (Split DNS)
+4. Reconnect Tailscale on client devices.
+
+After either option, validate DNS/routing:
+
+```bash
+curl -I -H 'Host: home.home' http://127.0.0.1/
+```
+
+For more detail: `docs/networking.md` and `docs/mobile-access-architecture.md`.
+
+### 9. Run day-2 operations
 
 ```bash
 # Stop an app
@@ -86,6 +136,72 @@ HOMELAB_DIR=$(pwd) ./scripts/validate-compose
 # DR readiness check
 ./scripts/dr-verify
 ```
+
+## Build a Custom Homelab App (Agent-First)
+
+Use this workflow when developing your own app stack in `apps/<your-app>/`.
+
+### 1. Define the app contract
+
+Before writing code/config, define:
+- app purpose and user flow
+- required hostname (`<app>.home`)
+- auth model (prefer Authentik SSO where possible)
+- data paths to back up
+- required env vars and secrets
+
+Reference: `docs/app-spec.md`
+
+### 2. Use a coding agent to scaffold the app
+
+Ask your coding agent to create:
+- `apps/<app>/compose.yml`
+- `apps/<app>/.env.example`
+- `apps/<app>/README.md`
+- `apps/<app>/app-contract.yaml`
+
+Prompt template:
+
+```text
+Create a new homelab app called <app> following docs/app-spec.md.
+Requirements:
+- Hostname: <app>.home
+- Docker image pinned to a version tag (not latest)
+- Join caddy-net for reverse proxy routing
+- Include healthcheck where supported
+- Add backup scope notes in README
+- Add Authentik/OIDC integration notes if app supports SSO
+Generate compose.yml, .env.example, README.md, and app-contract.yaml.
+```
+
+### 3. Add Caddy route and DNS hostname
+
+- Add a route in `platform/caddy/Caddyfile` for `http://<app>.home`
+- Ensure hostname resolution via `/etc/hosts` or Tailscale Split DNS
+
+### 4. Validate and deploy
+
+```bash
+# Validate all compose files
+HOMELAB_DIR=$(pwd) ./scripts/validate-compose
+
+# Start your app
+./scripts/app-up <app>
+```
+
+### 5. Verify and operationalize
+
+- verify app is reachable at `http://<app>.home`
+- add homepage and uptime-kuma entries
+- test backup/restore path:
+
+```bash
+./scripts/app-backup <app>
+./scripts/app-restore <app>
+```
+
+- document final setup in `apps/<app>/README.md`
+- update `docs/inventory.md` and `docs/runbook.md`
 
 ## Running Tests
 
