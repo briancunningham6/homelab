@@ -23,8 +23,8 @@ Deploy a secure DMZ on Raspberry Pi 5 to host public-facing content:
                              ▼
 ┌────────────────────────────────────────────────────────────────┐
 │  DMZ: Raspberry Pi 5                                            │
-│  Hostname: dmz-pi5                                              │
-│  Tailscale: dmz-pi5.tail*****.ts.net (public via Funnel)       │
+│  Hostname: <dmz-host>                                              │
+│  Tailscale: <dmz-host>.tail*****.ts.net (public via Funnel)       │
 │                                                                 │
 │  ┌──────────────────────────────────────────────────────────┐  │
 │  │  Docker Compose Stack                                    │  │
@@ -60,7 +60,7 @@ Deploy a secure DMZ on Raspberry Pi 5 to host public-facing content:
 │  3. Push to DMZ: scripts/dmz-publish                           │
 │                                                                 │
 │  Monitoring:                                                    │
-│  - Uptime Kuma monitors dmz-pi5 via Tailscale                  │
+│  - Uptime Kuma monitors <dmz-host> via Tailscale                  │
 │                                                                 │
 │  Backup:                                                        │
 │  - DMZ pushes backups to Mac mini via Tailscale                │
@@ -87,7 +87,7 @@ Deploy a secure DMZ on Raspberry Pi 5 to host public-facing content:
 1. Download Raspberry Pi Imager
 2. Select: **Raspberry Pi OS Lite (64-bit)** — no desktop needed
 3. Configure in Imager settings:
-   - Hostname: `dmz-pi5`
+   - Hostname: `<dmz-host>`
    - Username: `dmz` (not default `pi`)
    - Password: Strong unique password
    - SSH: Enable with password auth (will switch to key-only later)
@@ -101,7 +101,7 @@ Deploy a secure DMZ on Raspberry Pi 5 to host public-facing content:
 
 ```bash
 # SSH into Pi (from Mac mini or any device on LAN)
-ssh dmz@dmz-pi5.local
+ssh <dmz-user>@<dmz-host>.local
 
 # Update system
 sudo apt update && sudo apt full-upgrade -y
@@ -129,10 +129,10 @@ sudo reboot
 # Generate SSH key on Mac mini (if not already exists)
 # On Mac mini:
 ssh-keygen -t ed25519 -C "homelab-dmz"
-ssh-copy-id -i ~/.ssh/id_ed25519.pub dmz@dmz-pi5.local
+ssh-copy-id -i ~/.ssh/id_ed25519.pub <dmz-user>@<dmz-host>.local
 
 # Disable password auth on Pi
-# On dmz-pi5:
+# On <dmz-host>:
 sudo tee /etc/ssh/sshd_config.d/hardening.conf << 'EOF'
 PasswordAuthentication no
 PermitRootLogin no
@@ -146,7 +146,7 @@ EOF
 sudo systemctl restart sshd
 
 # Test SSH key login (from Mac mini)
-ssh dmz@dmz-pi5.local
+ssh <dmz-user>@<dmz-host>.local
 # Should connect without password prompt
 ```
 
@@ -220,7 +220,7 @@ sudo tailscale up
 # Verify connection
 tailscale status
 
-# Note the Tailscale hostname (e.g., dmz-pi5.tail12345.ts.net)
+# Note the Tailscale hostname (e.g., <dmz-host>.tail12345.ts.net)
 tailscale status --self
 ```
 
@@ -228,7 +228,7 @@ tailscale status --self
 
 ```bash
 # Enable Funnel on port 443
-# This exposes https://dmz-pi5.tail*****.ts.net to the public internet
+# This exposes https://<dmz-host>.tail*****.ts.net to the public internet
 sudo tailscale funnel 443
 
 # Verify Funnel status
@@ -236,14 +236,14 @@ tailscale funnel status
 
 # Expected output:
 # Funnel on:
-#   - https://dmz-pi5.tail*****.ts.net
+#   - https://<dmz-host>.tail*****.ts.net
 ```
 
 **Test Public Access:**
 
 From a device NOT on your Tailscale network (e.g., phone on cellular):
 ```
-curl https://dmz-pi5.tail*****.ts.net
+curl https://<dmz-host>.tail*****.ts.net
 # Should show Tailscale's default "connection refused" (no service yet)
 ```
 
@@ -331,7 +331,7 @@ sudo netfilter-persistent save
 
 ```bash
 # Should FAIL (blocked by firewall)
-ping -c 1 192.168.1.1
+ping -c 1 <ROUTER_IP>
 # Expected: 100% packet loss or "Operation not permitted"
 
 # Should SUCCEED (Tailscale management)
@@ -351,10 +351,10 @@ nslookup google.com
 
 ```bash
 # SSH via Tailscale should work
-ssh dmz@dmz-pi5  # Uses Tailscale DNS
+ssh <dmz-user>@<dmz-host>  # Uses Tailscale DNS
 
 # SSH via LAN should work (for now - Pi can receive, just can't initiate)
-ssh dmz@dmz-pi5.local
+ssh <dmz-user>@<dmz-host>.local
 ```
 
 **Estimated time:** 15 minutes
@@ -372,7 +372,7 @@ sudo usermod -aG docker dmz
 
 # Log out and back in for group membership
 exit
-ssh dmz@dmz-pi5
+ssh <dmz-user>@<dmz-host>
 
 # Verify Docker
 docker --version
@@ -637,7 +637,7 @@ docker compose logs -f
 **Test locally:**
 
 ```bash
-# On dmz-pi5
+# On <dmz-host>
 curl http://localhost:8080/health
 # Expected: OK
 
@@ -652,10 +652,10 @@ curl http://localhost:8080/files/
 
 From phone on cellular (not on WiFi/Tailscale):
 ```
-https://dmz-pi5.tail*****.ts.net/blog/
+https://<dmz-host>.tail*****.ts.net/blog/
 # Expected: Placeholder blog page
 
-https://dmz-pi5.tail*****.ts.net/files/
+https://<dmz-host>.tail*****.ts.net/files/
 # Expected: FileBrowser login
 ```
 
@@ -670,7 +670,7 @@ https://dmz-pi5.tail*****.ts.net/files/
 docker exec -it dmz-files /filebrowser users add admin <password> --perm.admin
 
 # Or access web UI and create users:
-# 1. Visit https://dmz-pi5.tail*****.ts.net/files/
+# 1. Visit https://<dmz-host>.tail*****.ts.net/files/
 # 2. Default login: admin / admin
 # 3. Change password immediately
 # 4. Create invite-only users as needed
@@ -698,7 +698,7 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-DMZ_HOST="dmz-pi5"  # Tailscale hostname
+DMZ_HOST="<dmz-host>"  # Tailscale hostname
 DMZ_USER="dmz"
 DMZ_PATH="/home/dmz/dmz"
 
@@ -759,7 +759,7 @@ case "${1:-all}" in
 esac
 
 info "DMZ content updated!"
-info "Public URL: https://dmz-pi5.tail*****.ts.net"
+info "Public URL: https://<dmz-host>.tail*****.ts.net"
 ```
 
 **Make executable:**
@@ -812,25 +812,25 @@ On Mac mini (via Uptime Kuma web UI or API):
 1. **Blog Monitor:**
    - Name: `DMZ Blog`
    - Type: HTTP(s)
-   - URL: `http://dmz-pi5:8080/blog/` (via Tailscale)
+   - URL: `http://<dmz-host>:8080/blog/` (via Tailscale)
    - Interval: 60 seconds
 
 2. **Files Monitor:**
    - Name: `DMZ Files`
    - Type: HTTP(s)
-   - URL: `http://dmz-pi5:8080/files/` (via Tailscale)
+   - URL: `http://<dmz-host>:8080/files/` (via Tailscale)
    - Interval: 60 seconds
 
 3. **Caddy Health:**
    - Name: `DMZ Caddy`
    - Type: HTTP(s)
-   - URL: `http://dmz-pi5:8080/health`
+   - URL: `http://<dmz-host>:8080/health`
    - Interval: 30 seconds
 
 4. **SSH Connectivity:**
    - Name: `DMZ SSH`
    - Type: TCP Port
-   - Host: `dmz-pi5`
+   - Host: `<dmz-host>`
    - Port: `22`
    - Interval: 60 seconds
 
@@ -849,7 +849,7 @@ cat > ~/dmz/backup.sh << 'EOF'
 set -euo pipefail
 
 BACKUP_HOST="mac-mini"  # Tailscale hostname
-BACKUP_PATH="/Users/user/homelab/backups/dmz"
+BACKUP_PATH="/Users/<username>/homelab/backups/dmz"
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 
 echo "[$(date)] Starting DMZ backup..."
@@ -938,7 +938,7 @@ sudo fail2ban-client status caddy
 # Run on DMZ Pi
 
 # 1. Test LAN isolation
-ping -c 1 192.168.1.1
+ping -c 1 <ROUTER_IP>
 # Expected: FAIL (blocked)
 
 # 2. Test Tailscale access
@@ -968,8 +968,8 @@ sudo iptables -L -n
 
 ### Functional Checklist
 
-- [ ] Blog accessible at `https://dmz-pi5.tail*****.ts.net/blog/`
-- [ ] Files accessible at `https://dmz-pi5.tail*****.ts.net/files/` (with login)
+- [ ] Blog accessible at `https://<dmz-host>.tail*****.ts.net/blog/`
+- [ ] Files accessible at `https://<dmz-host>.tail*****.ts.net/files/` (with login)
 - [ ] SSH only works via Tailscale (not from internet)
 - [ ] `dmz-publish` successfully pushes content from Mac mini
 - [ ] Uptime Kuma shows all DMZ monitors as UP
@@ -998,7 +998,7 @@ hugo build
 scripts/dmz-publish blog
 
 # 4. Verify
-open https://dmz-pi5.tail*****.ts.net/blog/
+open https://<dmz-host>.tail*****.ts.net/blog/
 ```
 
 ### Adding Files to Share
@@ -1019,7 +1019,7 @@ scripts/dmz-publish files
 
 ```bash
 # SSH to DMZ
-ssh dmz@dmz-pi5
+ssh <dmz-user>@<dmz-host>
 
 # Pull new images
 cd ~/dmz
@@ -1081,18 +1081,18 @@ docker compose up -d
 | Component | Status | Location |
 |-----------|--------|----------|
 | **Hardware** | Pi 5, Ethernet, SSD boot | Physical |
-| **OS** | Raspberry Pi OS Lite 64-bit | dmz-pi5 |
-| **Network** | Tailscale Funnel (public HTTPS) | dmz-pi5 |
-| **Isolation** | iptables (blocks LAN access) | dmz-pi5 |
-| **Security** | fail2ban, auto-updates, key-only SSH | dmz-pi5 |
-| **Blog** | Nginx serving Hugo static files | dmz-pi5 |
-| **Files** | FileBrowser with password auth | dmz-pi5 |
-| **Proxy** | Caddy with security headers | dmz-pi5 |
+| **OS** | Raspberry Pi OS Lite 64-bit | <dmz-host> |
+| **Network** | Tailscale Funnel (public HTTPS) | <dmz-host> |
+| **Isolation** | iptables (blocks LAN access) | <dmz-host> |
+| **Security** | fail2ban, auto-updates, key-only SSH | <dmz-host> |
+| **Blog** | Nginx serving Hugo static files | <dmz-host> |
+| **Files** | FileBrowser with password auth | <dmz-host> |
+| **Proxy** | Caddy with security headers | <dmz-host> |
 | **Authoring** | Hugo on Mac mini | Mac mini |
-| **Publishing** | rsync via Tailscale | Mac mini → dmz-pi5 |
+| **Publishing** | rsync via Tailscale | Mac mini → <dmz-host> |
 | **Monitoring** | Uptime Kuma via Tailscale | Mac mini |
-| **Backup** | Daily tar to Mac mini | dmz-pi5 → Mac mini |
+| **Backup** | Daily tar to Mac mini | <dmz-host> → Mac mini |
 
-**Public URL:** `https://dmz-pi5.tail*****.ts.net/`
+**Public URL:** `https://<dmz-host>.tail*****.ts.net/`
 
 This design provides strong security (isolated from LAN, key-only SSH, auto-updates, fail2ban) while remaining simple to operate (content push from Mac mini, full homelab integration).

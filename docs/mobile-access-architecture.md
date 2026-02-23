@@ -29,7 +29,7 @@ Homelab services use custom `.home` domain names (e.g., `missions.home`, `immich
 Combine **Tailscale VPN** + **AdGuard Home DNS** to provide:
 - Secure remote access (Tailscale)
 - Custom DNS resolution (AdGuard Home)
-- Clean, memorable URLs (`missions.home` instead of `100.73.223.8:5173`)
+- Clean, memorable URLs (`missions.home` instead of `<TAILSCALE_IP>:5173`)
 - Works on any device (iPhone, iPad, Android, laptops)
 
 ---
@@ -42,7 +42,7 @@ Combine **Tailscale VPN** + **AdGuard Home DNS** to provide:
 │  ┌──────────────────────────────────────────────────────────┐  │
 │  │                    Tailscale Client                       │  │
 │  │  - Connected to Tailscale network (100.x.x.x)            │  │
-│  │  - DNS configured to use 100.73.223.8                    │  │
+│  │  - DNS configured to use <TAILSCALE_IP>                    │  │
 │  └──────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────┘
                             ↓
@@ -58,11 +58,11 @@ Combine **Tailscale VPN** + **AdGuard Home DNS** to provide:
 │  ┌──────────────────────────────────────────────────────────┐  │
 │  │              AdGuard Home (DNS Server)                   │  │
 │  │  - Listens on port 53 (DNS)                             │  │
-│  │  - Tailscale IP: 100.73.223.8                           │  │
-│  │  - DNS Rewrite: *.home → 192.168.0.199                  │  │
+│  │  - Tailscale IP: <TAILSCALE_IP>                           │  │
+│  │  - DNS Rewrite: *.home → <LAN_IP>                  │  │
 │  └──────────────────────────────────────────────────────────┘  │
 │                            ↓                                     │
-│              Returns: 192.168.0.199 (Mac mini LAN IP)           │
+│              Returns: <LAN_IP> (Mac mini LAN IP)           │
 │                            ↓                                     │
 │  ┌──────────────────────────────────────────────────────────┐  │
 │  │               Caddy (Reverse Proxy)                      │  │
@@ -101,8 +101,8 @@ Combine **Tailscale VPN** + **AdGuard Home DNS** to provide:
 
 **Configuration**:
 ```
-Nameserver: 100.73.223.8 (Mac mini's Tailscale IP)
-Split DNS: home domain → 100.73.223.8
+Nameserver: <TAILSCALE_IP> (Mac mini's Tailscale IP)
+Split DNS: home domain → <TAILSCALE_IP>
 Override local DNS: Enabled
 ```
 
@@ -125,13 +125,13 @@ Override local DNS: Enabled
 **DNS Rewrite Rule**:
 ```
 Domain Pattern: *.home
-Answer: 192.168.0.199
+Answer: <LAN_IP>
 ```
 
 This single rule handles all `.home` subdomains:
-- `missions.home` → `192.168.0.199`
-- `immich.home` → `192.168.0.199`
-- `anyservice.home` → `192.168.0.199`
+- `missions.home` → `<LAN_IP>`
+- `immich.home` → `<LAN_IP>`
+- `anyservice.home` → `<LAN_IP>`
 
 ### 3. Caddy (Reverse Proxy)
 
@@ -185,31 +185,31 @@ Let's trace what happens when you visit `http://missions.home` from your iPhone:
 ```
 iPhone Safari: "What is the IP address of missions.home?"
     ↓
-iPhone Tailscale Client: "Use 100.73.223.8 for .home domains"
+iPhone Tailscale Client: "Use <TAILSCALE_IP> for .home domains"
     ↓
-DNS Query sent to 100.73.223.8:53 over Tailscale VPN
+DNS Query sent to <TAILSCALE_IP>:53 over Tailscale VPN
     ↓
 AdGuard Home receives query on Mac mini
     ↓
 AdGuard Home checks DNS rewrite rules
     ↓
-Match found: *.home → 192.168.0.199
+Match found: *.home → <LAN_IP>
     ↓
-AdGuard Home responds: "missions.home is at 192.168.0.199"
+AdGuard Home responds: "missions.home is at <LAN_IP>"
     ↓
-iPhone receives response: 192.168.0.199
+iPhone receives response: <LAN_IP>
 ```
 
 #### 2. HTTP Connection Phase
 
 ```
-iPhone Safari: "Connect to 192.168.0.199:80"
+iPhone Safari: "Connect to <LAN_IP>:80"
     ↓
 Connection routed through Tailscale VPN tunnel
     ↓
 Reaches Mac mini's Tailscale interface
     ↓
-Forwarded to Mac mini's LAN interface (192.168.0.199)
+Forwarded to Mac mini's LAN interface (<LAN_IP>)
     ↓
 Caddy listening on port 80 receives HTTP request
     ↓
@@ -230,12 +230,12 @@ Page loads in Safari
 
 The system uses three different IP address spaces:
 
-1. **LAN IP**: `192.168.0.199`
+1. **LAN IP**: `<LAN_IP>`
    - Mac mini's address on local network
    - Where Caddy and services actually run
    - Not directly accessible from outside the network
 
-2. **Tailscale IP**: `100.73.223.8`
+2. **Tailscale IP**: `<TAILSCALE_IP>`
    - Mac mini's address on Tailscale VPN
    - Accessible from any device on the Tailscale network
    - DNS server (AdGuard Home) listens here
@@ -247,19 +247,19 @@ The system uses three different IP address spaces:
 
 ### Why Use LAN IP in DNS Rewrites?
 
-You might wonder: "Why do DNS rewrites point to `192.168.0.199` (LAN IP) instead of `100.73.223.8` (Tailscale IP)?"
+You might wonder: "Why do DNS rewrites point to `<LAN_IP>` (LAN IP) instead of `<TAILSCALE_IP>` (Tailscale IP)?"
 
 **Answer**: Tailscale routing optimization.
 
 When a device on Tailscale queries for `missions.home`:
-1. DNS returns `192.168.0.199`
+1. DNS returns `<LAN_IP>`
 2. Tailscale client sees this is a "local" IP
 3. Tailscale routes the connection through the VPN to the Mac mini
 4. Mac mini's network stack routes to its own LAN interface
 5. Connection arrives at Caddy
 
 This works because:
-- Tailscale knows `192.168.0.199` is on the Mac mini
+- Tailscale knows `<LAN_IP>` is on the Mac mini
 - The connection stays secure (still goes through VPN tunnel)
 - It's slightly more efficient than using the Tailscale IP
 
@@ -281,11 +281,11 @@ This works because:
 ```bash
 # Mac mini LAN IP
 ifconfig | grep "inet " | grep -v 127.0.0.1
-# Example output: inet 192.168.0.199
+# Example output: inet <LAN_IP>
 
 # Mac mini Tailscale IP
 tailscale ip -4
-# Example output: 100.73.223.8
+# Example output: <TAILSCALE_IP>
 ```
 
 Record these values - you'll need them for configuration.
@@ -297,7 +297,7 @@ Record these values - you'll need them for configuration.
 3. Click: **Add DNS rewrite**
 4. Configure:
    - Domain: `*.home`
-   - Answer: `192.168.0.199` (your Mac mini LAN IP)
+   - Answer: `<LAN_IP>` (your Mac mini LAN IP)
 5. Click: **Save**
 
 **What this does**: Tells AdGuard Home to respond to any `*.home` query with your Mac mini's IP address.
@@ -307,27 +307,27 @@ Record these values - you'll need them for configuration.
 If wildcard doesn't work, add each service individually:
 
 ```
-home.home       → 192.168.0.199
-dockge.home     → 192.168.0.199
-status.home     → 192.168.0.199
-login.home      → 192.168.0.199
-immich.home     → 192.168.0.199
-missions.home   → 192.168.0.199
-adguard.home    → 192.168.0.199
+home.home       → <LAN_IP>
+dockge.home     → <LAN_IP>
+status.home     → <LAN_IP>
+login.home      → <LAN_IP>
+immich.home     → <LAN_IP>
+missions.home   → <LAN_IP>
+adguard.home    → <LAN_IP>
 ```
 
 #### Step 3: Configure Tailscale DNS
 
 1. Open: https://login.tailscale.com/admin/dns
 2. Click: **Add nameserver**
-3. Enter: `100.73.223.8` (your Mac mini Tailscale IP)
+3. Enter: `<TAILSCALE_IP>` (your Mac mini Tailscale IP)
 4. Click: **Save**
 
 **Optional but recommended - Split DNS**:
 
 5. Click: **Add split DNS nameserver**
 6. Configure:
-   - Nameserver: `100.73.223.8`
+   - Nameserver: `<TAILSCALE_IP>`
    - Restrict to domain: `home`
 7. Click: **Save**
 
@@ -347,14 +347,14 @@ Before testing on mobile, verify DNS works from the Mac:
 
 ```bash
 # Test DNS resolution using AdGuard Home
-nslookup missions.home 100.73.223.8
+nslookup missions.home <TAILSCALE_IP>
 
 # Expected output:
-# Server:    100.73.223.8
-# Address:   100.73.223.8#53
+# Server:    <TAILSCALE_IP>
+# Address:   <TAILSCALE_IP>#53
 #
 # Name:      missions.home
-# Address:   192.168.0.199
+# Address:   <LAN_IP>
 ```
 
 If this works, mobile devices will work too.
@@ -391,7 +391,7 @@ http://newservice.home {
 
 1. **Add DNS rewrite** in AdGuard Home:
    - Domain: `newservice.home`
-   - Answer: `192.168.0.199`
+   - Answer: `<LAN_IP>`
 
 2. **Add Caddy route**:
    ```
@@ -422,19 +422,19 @@ docker ps | grep adguard
 **Check 2 - DNS rewrites are saved**:
 1. Open `http://adguard.home`
 2. Go to Filters → DNS rewrites
-3. Verify `*.home → 192.168.0.199` exists
+3. Verify `*.home → <LAN_IP>` exists
 
 **Check 3 - Tailscale DNS settings**:
 1. Go to https://login.tailscale.com/admin/dns
-2. Verify nameserver `100.73.223.8` is listed
+2. Verify nameserver `<TAILSCALE_IP>` is listed
 3. Verify "Override local DNS" is enabled
 
 **Check 4 - Test DNS directly**:
 ```bash
 # From Mac
-nslookup missions.home 100.73.223.8
+nslookup missions.home <TAILSCALE_IP>
 
-# Should return 192.168.0.199
+# Should return <LAN_IP>
 ```
 
 **Fix**: If DNS query fails, restart AdGuard Home:
@@ -455,7 +455,7 @@ docker compose -f apps/adguard/compose.yml restart
 
 From mobile device, try using the Tailscale IP directly:
 ```
-http://100.73.223.8:80
+http://<TAILSCALE_IP>:80
 ```
 
 If this works but `missions.home` doesn't, it's a DNS issue.
@@ -556,10 +556,10 @@ docker compose -f apps/adguard/compose.yml up -d
 If you have services on multiple domains:
 
 ```
-Nameserver: 100.73.223.8
-Split DNS 1: .home → 100.73.223.8
-Split DNS 2: .lab → 100.73.223.8
-Split DNS 3: .homelab → 100.73.223.8
+Nameserver: <TAILSCALE_IP>
+Split DNS 1: .home → <TAILSCALE_IP>
+Split DNS 2: .lab → <TAILSCALE_IP>
+Split DNS 3: .homelab → <TAILSCALE_IP>
 ```
 
 Add corresponding DNS rewrites in AdGuard Home.
@@ -580,7 +580,7 @@ AdGuard Home supports DoH for encrypted DNS queries:
 
 1. In AdGuard Home UI → Settings → Encryption
 2. Enable HTTPS for DNS
-3. Configure Tailscale to use: `https://100.73.223.8/dns-query`
+3. Configure Tailscale to use: `https://<TAILSCALE_IP>/dns-query`
 
 **Note**: This adds encryption redundancy (DNS already encrypted by Tailscale VPN).
 
@@ -647,7 +647,7 @@ Restrict which devices can access which services:
     {
       "action": "accept",
       "src": ["tag:mobile"],
-      "dst": ["100.73.223.8:53", "100.73.223.8:80"]
+      "dst": ["<TAILSCALE_IP>:53", "<TAILSCALE_IP>:80"]
     }
   ]
 }
@@ -759,9 +759,9 @@ Run different DNS for internal vs external:
 
 | Component | LAN IP | Tailscale IP | Purpose |
 |-----------|--------|--------------|---------|
-| Mac mini | 192.168.0.199 | 100.73.223.8 | Homelab host |
-| AdGuard Home | - | 100.73.223.8:53 | DNS server |
-| Caddy | 192.168.0.199:80 | - | Reverse proxy |
+| Mac mini | <LAN_IP> | <TAILSCALE_IP> | Homelab host |
+| AdGuard Home | - | <TAILSCALE_IP>:53 | DNS server |
+| Caddy | <LAN_IP>:80 | - | Reverse proxy |
 | Services | 172.x.x.x | - | Docker containers |
 
 ### Port Reference
@@ -792,7 +792,7 @@ docker ps | grep adguard
 docker compose -f apps/adguard/compose.yml logs -f
 
 # Test DNS resolution
-nslookup missions.home 100.73.223.8
+nslookup missions.home <TAILSCALE_IP>
 
 # Get Mac mini IPs
 ifconfig | grep "inet " | grep -v 127.0.0.1

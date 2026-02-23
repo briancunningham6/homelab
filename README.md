@@ -13,6 +13,17 @@ Self-hosted personal infrastructure focused on user control, repeatable operatio
 - Primary operator profile: solo power user
 - Priority workloads: photo management, AI-assisted coding applications, media services
 
+## Placeholder Legend
+
+This README uses placeholders in commands/examples to avoid leaking local details:
+
+- `<LAN_IP>`: your homelab host LAN IP (example format: `192.168.x.x`)
+- `<TAILSCALE_IP>`: your homelab host Tailscale IP (example format: `100.x.y.z`)
+- `<ROUTER_IP>`: your router gateway IP (example format: `192.168.x.1`)
+- `<username>`: your local macOS username
+- `<dmz-user>` / `<dmz-host>`: SSH user and hostname for a DMZ node
+- `<backup-user>` / `<backup-host>`: SSH user and hostname for backup target node
+
 ## What This Repo Includes
 
 - `platform/`: Core services (Caddy, Authentik, Homepage, Dockge, Tailscale, Uptime Kuma, etc.)
@@ -78,25 +89,25 @@ This platform uses Caddy virtual hosts such as `home.home`, `login.home`, and
 Option A: local `/etc/hosts` (simple, per-device)
 
 1. Find your homelab IP:
-   - local LAN: use your Mac mini LAN IP (for example `192.168.0.199`)
+   - local LAN: use your Mac mini LAN IP (for example `<LAN_IP>`)
    - remote via Tailscale: use your Mac mini Tailscale IP (for example `100.x.y.z`)
 2. Add host entries:
 
 ```bash
 sudo tee -a /etc/hosts << 'EOF'
 # Homelab hostnames
-192.168.0.199 home.home
-192.168.0.199 login.home
-192.168.0.199 status.home
-192.168.0.199 dockge.home
-192.168.0.199 immich.home
-192.168.0.199 copyparty.home
-192.168.0.199 jellyfin.home
-192.168.0.199 backup.home
-192.168.0.199 adguard.home
-192.168.0.199 updates.home
-192.168.0.199 missions.home
-192.168.0.199 openclaw.home
+<LAN_IP> home.home
+<LAN_IP> login.home
+<LAN_IP> status.home
+<LAN_IP> dockge.home
+<LAN_IP> immich.home
+<LAN_IP> copyparty.home
+<LAN_IP> jellyfin.home
+<LAN_IP> backup.home
+<LAN_IP> adguard.home
+<LAN_IP> updates.home
+<LAN_IP> missions.home
+<LAN_IP> openclaw.home
 EOF
 ```
 

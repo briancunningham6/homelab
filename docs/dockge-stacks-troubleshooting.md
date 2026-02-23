@@ -15,7 +15,7 @@ In Dockge container logs:
 
 Dockge was pointed at a flat stacks directory:
 
-- `DOCKGE_STACKS_DIR_HOST=/Users/briancunningham/dev/homelab/.dockge-stacks`
+- `DOCKGE_STACKS_DIR_HOST=/Users/<username>/dev/homelab/.dockge-stacks`
 
 But stack folders were incomplete (missing compose files, or only had `.env`), so Dockge could not run compose operations.
 
@@ -40,7 +40,7 @@ python3 - <<'PY'
 from pathlib import Path
 import shutil
 
-repo=Path('/Users/briancunningham/dev/homelab')
+repo=Path('/Users/<username>/dev/homelab')
 stacks=repo/'.dockge-stacks'
 stacks.mkdir(exist_ok=True)
 

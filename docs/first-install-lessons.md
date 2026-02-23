@@ -5,16 +5,16 @@ Use this as a preflight checklist before future installs.
 ## 1) Path and stack assumptions
 
 - Set `HOMELAB_DIR` explicitly when running scripts from non-default location:
-  - `HOMELAB_DIR=/Users/briancunningham/dev/homelab ./scripts/platform-up`
+  - `HOMELAB_DIR=/Users/<username>/dev/homelab ./scripts/platform-up`
 - `platform/dockge/.env` must point to the real repo path:
-  - `DOCKGE_STACKS_DIR=/Users/briancunningham/dev/homelab`
+  - `DOCKGE_STACKS_DIR=/Users/<username>/dev/homelab`
 
 ## 2) Caddy routing for practical access
 
 - During setup/testing, include all hostnames/IPs you actually use:
   - `immich.home`
-  - `192.168.0.199` (LAN)
-  - `100.73.223.8` (Tailscale)
+  - `<LAN_IP>` (LAN)
+  - `<TAILSCALE_IP>` (Tailscale)
 - If Safari says server dropped connection on `https://immich.home`, test `http://...` first.
 - Current setup is HTTP-only for internal experiment mode.
 
@@ -43,7 +43,7 @@ The original automation script needed updates for Authentik 2024.12 API:
 
 - `login.home` won’t resolve on iPhone without hosts overrides.
 - For Tailscale-first mobile setup, use issuer reachable on phone:
-  - `http://100.73.223.8:9000/application/o/immich/`
+  - `http://<TAILSCALE_IP>:9000/application/o/immich/`
 - Expose Authentik server port for this mode:
   - `9000:9000` on `authentik-server`.
 

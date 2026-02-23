@@ -8,8 +8,8 @@ This is a quick-start guide. The architecture document explains how everything w
 
 ## Your Configuration
 
-- **Mac mini LAN IP**: 192.168.0.199
-- **Mac mini Tailscale IP**: 100.73.223.8
+- **Mac mini LAN IP**: <LAN_IP>
+- **Mac mini Tailscale IP**: <TAILSCALE_IP>
 - **DNS Server**: AdGuard Home (running in Docker)
 
 ## Quick Setup
@@ -24,18 +24,18 @@ This is a quick-start guide. The architecture document explains how everything w
 
 **Option A - Individual entries:**
 ```
-home.home       → 192.168.0.199
-dockge.home     → 192.168.0.199
-status.home     → 192.168.0.199
-login.home      → 192.168.0.199
-immich.home     → 192.168.0.199
-missions.home   → 192.168.0.199
-adguard.home    → 192.168.0.199
+home.home       → <LAN_IP>
+dockge.home     → <LAN_IP>
+status.home     → <LAN_IP>
+login.home      → <LAN_IP>
+immich.home     → <LAN_IP>
+missions.home   → <LAN_IP>
+adguard.home    → <LAN_IP>
 ```
 
 **Option B - Wildcard (recommended):**
 ```
-*.home          → 192.168.0.199
+*.home          → <LAN_IP>
 ```
 
 ### 2. Configure Tailscale DNS
@@ -44,12 +44,12 @@ adguard.home    → 192.168.0.199
 
 **Add Global Nameserver:**
 1. Click "Add nameserver"
-2. Enter: `100.73.223.8`
+2. Enter: `<TAILSCALE_IP>`
 3. Save
 
 **Add Split DNS (recommended):**
 1. Click "Add split DNS nameserver"
-2. Nameserver: `100.73.223.8`
+2. Nameserver: `<TAILSCALE_IP>`
 3. Restrict to domain: `home`
 4. Save
 
@@ -80,8 +80,8 @@ docker ps | grep adguard
 
 **Test DNS resolution from Mac:**
 ```bash
-# Should return 192.168.0.199
-nslookup missions.home 100.73.223.8
+# Should return <LAN_IP>
+nslookup missions.home <TAILSCALE_IP>
 ```
 
 **Check Tailscale DNS settings:**
@@ -125,11 +125,11 @@ Tailscale VPN (100.x.x.x network)
     ↓
 DNS Query for missions.home
     ↓
-AdGuard Home on Mac mini (100.73.223.8:53)
+AdGuard Home on Mac mini (<TAILSCALE_IP>:53)
     ↓
-DNS Rewrite: missions.home → 192.168.0.199
+DNS Rewrite: missions.home → <LAN_IP>
     ↓
-HTTP Request to 192.168.0.199:80
+HTTP Request to <LAN_IP>:80
     ↓
 Caddy reverse proxy on Mac mini
     ↓
@@ -148,7 +148,7 @@ When you add a new service with a `.home` domain:
 **If using individual entries:**
 1. Open AdGuard Home UI
 2. Go to Filters → DNS rewrites
-3. Add: `newservice.home → 192.168.0.199`
+3. Add: `newservice.home → <LAN_IP>`
 4. Save
 
 ## Alternative: Direct IP Access
@@ -157,9 +157,9 @@ If DNS isn't working, you can always use direct IPs:
 
 **Via Tailscale:**
 ```
-http://100.73.223.8:3000    # Homepage
-http://100.73.223.8:2283    # Immich
-http://100.73.223.8:5173    # Missions (in dev mode)
+http://<TAILSCALE_IP>:3000    # Homepage
+http://<TAILSCALE_IP>:2283    # Immich
+http://<TAILSCALE_IP>:5173    # Missions (in dev mode)
 ```
 
 **Note:** This requires knowing the ports and bypasses Caddy's routing.
@@ -195,7 +195,7 @@ docker compose -f apps/adguard/compose.yml logs -f
 **Test DNS resolution:**
 ```bash
 # From Mac (using AdGuard Home DNS)
-nslookup missions.home 100.73.223.8
+nslookup missions.home <TAILSCALE_IP>
 
 # From iPhone (in Safari address bar)
 missions.home

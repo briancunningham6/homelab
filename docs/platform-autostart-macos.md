@@ -10,7 +10,7 @@ This guide explains how to automatically start the homelab stack after a Mac reb
 
 ## Prerequisites
 
-- Repo path exists: `/Users/briancunningham/dev/homelab`
+- Repo path exists: `/Users/<username>/dev/homelab`
 - Startup script is executable: `scripts/platform-up`
 - Docker Desktop is installed and configured to start at login (recommended)
 
@@ -32,7 +32,7 @@ Create this file:
     <array>
         <string>/bin/zsh</string>
         <string>-lc</string>
-        <string>sleep 30 &amp;&amp; HOMELAB_DIR=/Users/briancunningham/dev/homelab /Users/briancunningham/dev/homelab/scripts/platform-up</string>
+        <string>sleep 30 &amp;&amp; HOMELAB_DIR=/Users/<username>/dev/homelab /Users/<username>/dev/homelab/scripts/platform-up</string>
     </array>
 
     <key>RunAtLoad</key>

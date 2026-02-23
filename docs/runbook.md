@@ -39,25 +39,25 @@ Log every significant operational event: deployments, updates, configuration cha
 **Services affected:** tailscale, caddy, authentik, uptime-kuma, homepage, dockge, copyparty, immich
 
 ### What changed
-Brought the homelab stack up on the Mac mini from `/Users/briancunningham/dev/homelab` and verified that Immich responds through Caddy.
+Brought the homelab stack up on the Mac mini from `/Users/<username>/dev/homelab` and verified that Immich responds through Caddy.
 
 ### Steps taken
 1. Ran platform startup using repo path override:
-   - `HOMELAB_DIR=/Users/briancunningham/dev/homelab ./scripts/platform-up`
+   - `HOMELAB_DIR=/Users/<username>/dev/homelab ./scripts/platform-up`
 2. Fixed Dockge stack path config:
-   - `platform/dockge/.env` updated from `/Users/user/homelab` → `/Users/briancunningham/dev/homelab`
+   - `platform/dockge/.env` updated from `/Users/<username>/homelab` → `/Users/<username>/dev/homelab`
 3. Started Dockge directly:
-   - `HOMELAB_DIR=/Users/briancunningham/dev/homelab ./scripts/app-up dockge`
+   - `HOMELAB_DIR=/Users/<username>/dev/homelab ./scripts/app-up dockge`
 4. Started Immich directly:
-   - `HOMELAB_DIR=/Users/briancunningham/dev/homelab ./scripts/app-up immich`
+   - `HOMELAB_DIR=/Users/<username>/dev/homelab ./scripts/app-up immich`
 5. Added quick LAN access host for experiment to Caddyfile:
-   - `http://immich.home, http://192.168.0.199` → `immich-server:2283`
+   - `http://immich.home, http://<LAN_IP>` → `immich-server:2283`
 6. Reloaded Caddy and validated Immich ping:
-   - `curl http://192.168.0.199/api/server/ping` returned `{"res":"pong"}`
+   - `curl http://<LAN_IP>/api/server/ping` returned `{"res":"pong"}`
 
 ### Result
 Core platform and app stacks running; Immich reachable over LAN via Caddy at:
-- `http://192.168.0.199`
+- `http://<LAN_IP>`
 - `http://immich.home` (when hostname resolves)
 
 ### Follow-up
@@ -174,23 +174,23 @@ Configured Authentik proxy provider/outpost wiring correctly for `backup.home` a
 ### Notes
 - Direct requests to `/outpost.goauthentik.io/auth/caddy` without forward-auth headers can return configuration errors; validate via Caddy route instead.
 
-## 2026-02-20 — Backup target configured on Tailscale Pi (`pi5`)
+## 2026-02-20 — Backup target configured on Tailscale Pi (`<backup-user>@<backup-host>`)
 
 **Type:** backup setup  
 **Operator:** OpenClaw + Brian  
 **Services affected:** backup repository, backrest prerequisites
 
 ### What changed
-Configured Raspberry Pi (`pi5`) as Restic backup target over Tailscale and initialized repository.
+Configured Raspberry Pi (`<backup-user>@<backup-host>`) as Restic backup target over Tailscale and initialized repository.
 
 ### Steps taken
-1. Ran setup script: `HOMELAB_DIR=/Users/briancunningham/dev/homelab ./scripts/setup-backup-pi pi5@pi5`
+1. Ran setup script: `HOMELAB_DIR=/Users/<username>/dev/homelab ./scripts/setup-backup-pi <backup-user>@<backup-host>`
 2. Accepted proof-of-concept local disk path on Pi (no external drive detected):
-   - `/home/pi5/homelab-backups`
+   - `/home/<backup-user>/homelab-backups`
 3. Installed Restic on Pi (Debian package).
 4. Generated SSH key on Mac mini and copied to Pi for key-based auth.
 5. Initialized Restic repository over SFTP:
-   - `sftp:pi5@pi5:/home/pi5/homelab-backups`
+   - `sftp:<backup-user>@<backup-host>:/home/<backup-user>/homelab-backups`
 6. Saved backup config to:
    - `platform/backup/.env`
 7. Ran and verified test backup (snapshot created successfully).
@@ -201,7 +201,7 @@ Configured Raspberry Pi (`pi5`) as Restic backup target over Tailscale and initi
 
 ### Follow-up
 - In Backrest UI (`backup.home`), add repository using:
-  - URI: `sftp:pi5@pi5:/home/pi5/homelab-backups`
+  - URI: `sftp:<backup-user>@<backup-host>:/home/<backup-user>/homelab-backups`
   - Password: from `platform/backup/.env` (`RESTIC_PASSWORD`)
 - For production, migrate backup path to external drive on Pi.
 

@@ -252,7 +252,7 @@ sudo apt install -y iptables-persistent
 
 ```bash
 # Should FAIL (blocked by firewall)
-ping 192.168.1.1
+ping <ROUTER_IP>
 
 # Should SUCCEED (Tailscale management)
 ping <mac-mini-tailscale-ip>
@@ -491,7 +491,7 @@ curl https://<dmz-pi-hostname>.ts.net
 
 ```bash
 # On DMZ Pi - should FAIL
-ping 192.168.1.1
+ping <ROUTER_IP>
 ssh user@mac-mini.local
 
 # Should SUCCEED
