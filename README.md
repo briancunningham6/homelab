@@ -1,104 +1,130 @@
-# Homelab Platform (Experimental) — Quick Start
+# Homelab Platform (Experimental)
 
-## Goal
-- Build a self-hosted home platform on a Mac mini using Docker Compose.
-- Run core services (routing, identity, dashboard, monitoring).
-- Deploy applications (starting with Immich/Copyparty) with consistent patterns.
-- Enable OpenClaw to manage and interact with the platform/apps.
+Self-hosted personal infrastructure focused on user control, repeatable operations, and progressive independence from third-party services.
 
-## Project Intent (for this phase)
-- Prioritize speed of iteration and learning.
-- Keep setup simple and practical.
-- Reliability and long-term hardening are secondary for now.
+## Dashboard
 
-## Open Source Roadmap (Executive)
-Current direction for preparing this project for open source:
+![Homelab dashboard](docs/assets/homepage-dashboard.png)
 
-1. Legal and governance baseline
-2. Security and CI baseline
-3. Documentation and support boundaries
-4. Testing and recovery confidence
-5. Onboarding and app ecosystem
-6. Community launch
+## Current Baseline
 
-Launch criteria before public release:
-- Governance docs in place (`LICENSE`, `CODE_OF_CONDUCT.md`, `CONTRIBUTING.md`, issue/PR templates).
-- Security disclosure policy and baseline threat-model updates are published.
-- CI checks and security scans are required on pull requests.
-- Support policy and compatibility matrix are explicit.
+- Primary host: Mac mini M4 (macOS + Docker Desktop)
+- Secondary host: Raspberry Pi 5 (backup workflows + DMZ blog role)
+- Primary operator profile: solo power user
+- Priority workloads: photo management, AI-assisted coding applications, media services
 
-Detailed operational roadmap: `docs/open-source-roadmap.md`
+## What This Repo Includes
 
-## What this repo provides
-- `platform/`: Core infrastructure stacks (Caddy, Authentik, Homepage, Dockge, Tailscale, Uptime Kuma)
-- `apps/`: Application stacks (Immich, Copyparty, etc.)
-- `scripts/`: Helper scripts for start/stop/update/backup flows
-- `docs/`: Design, rollout plan, ops standards, agent model
+- `platform/`: Core services (Caddy, Authentik, Homepage, Dockge, Tailscale, Uptime Kuma, etc.)
+- `apps/`: Application stacks (Immich, Copyparty, Jellyfin, and others)
+- `scripts/`: Operational scripts for deploy/update/backup/restore/DR verification
+- `docs/`: Design, architecture, runbooks, security, roadmap, and onboarding docs
+- `tests/`: Bats script and integration tests
 
-## Prerequisites
+## Getting Started
+
+### 1. Prerequisites
+
 1. macOS host with Docker Desktop installed and running
-2. GitHub repo cloned locally
-3. Enough free disk space (recommended **>= 40GB free**)
-4. Optional: Tailscale auth key for remote access stack
+2. Git installed
+3. At least 40 GB free disk space recommended
+4. Optional: Tailscale auth key for remote access workflows
 
-## Recommended first-run order
-1. **Clone and enter repo**
-   ```bash
-   git clone https://github.com/briancunningham6/homelab.git
-   cd homelab
-   ```
+### 2. Clone the repo
 
-2. **Prepare env files from examples**
-   - Copy each `.env.example` to `.env` where needed
-   - Fill required values (passwords, secrets, domain/host values)
+```bash
+git clone https://github.com/briancunningham6/homelab.git
+cd homelab
+```
 
-3. **Validate all compose files**
-   ```bash
-   HOMELAB_DIR=$(pwd) ./scripts/validate-compose
-   ```
+### 3. Prepare environment files
 
-4. **Start platform core (in order)**
-   ```bash
-   ./scripts/platform-up
-   ```
+- Copy each `.env.example` to `.env` where needed
+- Fill required values (passwords, secrets, host/domain settings)
 
-5. **Verify core services**
-   - Caddy routing
-   - Authentik login page
-   - Homepage dashboard
-   - Uptime Kuma health panel
+### 4. Validate compose files
 
-6. **Deploy first app (Immich)**
-   ```bash
-   ./scripts/app-up immich
-   ```
+```bash
+HOMELAB_DIR=$(pwd) ./scripts/validate-compose
+```
 
-7. **Configure identity integration**
-   - Create groups/users in Authentik
-   - Wire app SSO (OIDC) as documented
+### 5. Start the platform
 
-8. **Add monitoring + dashboard entries**
-   - Ensure app appears in Homepage and Uptime Kuma
+```bash
+./scripts/platform-up
+```
 
-9. **Record what was done**
-   - Update `docs/inventory.md` and `docs/runbook.md`
+### 6. Verify core services
 
-## Quick day-2 operations
+- Caddy routing
+- Authentik login
+- Homepage dashboard
+- Uptime Kuma health panel
+
+### 7. Deploy your first app
+
+```bash
+./scripts/app-up immich
+```
+
+### 8. Run day-2 operations
+
 ```bash
 # Stop an app
 ./scripts/app-down <app>
 
 # Update an app
-./scripts/app-update <app>
+./scripts/app-update <app> <new-version>
 
 # Backup an app
 ./scripts/app-backup <app>
 
 # Restore an app
 ./scripts/app-restore <app>
+
+# DR readiness check
+./scripts/dr-verify
 ```
 
+## Running Tests
+
+Install Bats (macOS):
+
+```bash
+brew install bats-core
+```
+
+Run all tests:
+
+```bash
+bats -r tests
+```
+
+## Open Source Status
+
+Completed foundations:
+
+- `LICENSE` (MIT)
+- `CODE_OF_CONDUCT.md`
+- `CONTRIBUTING.md`
+- `.github` issue/PR/security templates
+- CI validation workflow (`.github/workflows/validate.yml`)
+- Initial Bats test suite for critical scripts and restore cycle
+
+Roadmap details: `docs/open-source-roadmap.md`
+
+## Documentation Map
+
+- Docs index: `docs/index.md`
+- Manifesto: `manifesto.md`
+- Bootstrap: `docs/bootstrap.md`
+- Operations standard: `docs/ops-standard.md`
+- DR runbook: `docs/dr-runbook.md`
+- Security model: `docs/security.md`
+- Support policy: `SUPPORT.md`
+- Compatibility matrix: `docs/compatibility-matrix.md`
+
 ## Notes
-- If disk space gets tight, prune Docker and move heavy app data to external storage.
-- Keep secrets out of git; use `.env.example` for templates only.
-- This is an experiment: optimize for a working vertical slice first.
+
+- Keep secrets out of git; use `.env.example` templates only.
+- This project is still experimental; optimize for a working vertical slice first.
