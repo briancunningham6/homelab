@@ -16,6 +16,7 @@ Central index for project documentation, organized by audience and task.
 3. `docs/networking.md`
 4. `docs/onboarding.md`
 5. `docs/runbook.md`
+6. `docs/faq.md`
 
 ### For Operators (day-2 operations)
 1. `docs/ops-standard.md`
@@ -23,6 +24,7 @@ Central index for project documentation, organized by audience and task.
 3. `docs/security.md`
 4. `docs/inventory.md`
 5. `docs/teardown.md`
+6. `docs/compatibility-matrix.md`
 
 ### For Contributors (build and extend)
 1. `docs/open-source-roadmap.md`
@@ -30,6 +32,7 @@ Central index for project documentation, organized by audience and task.
 3. `docs/adrs/`
 4. `docs/tasks/`
 5. `CLAUDE.md`
+6. `CONTRIBUTING.md`
 
 ## Quick Task Links
 - First install prerequisites: `docs/bootstrap.md`
@@ -38,6 +41,7 @@ Central index for project documentation, organized by audience and task.
 - Bring up an app: `scripts/app-up`
 - Backup and restore workflows: `docs/ops-standard.md`, `docs/dr-runbook.md`
 - DMZ/public services planning: `docs/dmz-public-services.md`, `docs/dmz-implementation-plan.md`
+- Support boundaries: `SUPPORT.md`, `docs/compatibility-matrix.md`
 
 ## Core Document Inventory
 
@@ -60,6 +64,8 @@ Central index for project documentation, organized by audience and task.
 - `docs/dr-runbook.md`: Disaster recovery procedures.
 - `docs/teardown.md`: Safe teardown and reset procedures.
 - `docs/access-matrix.md`: Access roles and permissions matrix.
+- `docs/compatibility-matrix.md`: Supported and experimental environment matrix.
+- `SUPPORT.md`: Support scope, channels, and maintainer boundaries.
 
 ### App Ecosystem
 - `docs/app-spec.md`: App integration contract and standards.
@@ -72,6 +78,8 @@ Central index for project documentation, organized by audience and task.
 
 ### Onboarding and Learning
 - `docs/onboarding.md`: User onboarding and account setup.
+- `docs/faq.md`: Common questions and troubleshooting entry points.
+- `docs/glossary.md`: Definitions for project and technical terminology.
 - `docs/first-install-lessons.md`: Lessons learned from first deployment.
 - `docs/future-considerations.md`: Future improvements and open directions.
 

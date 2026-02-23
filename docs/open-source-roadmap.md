@@ -521,11 +521,11 @@ Define release process:
 
 | Task | Owner | Status |
 |------|-------|--------|
-| Create docs/index.md with reading paths | | Not started |
-| Create docs/glossary.md | | Not started |
-| Create docs/faq.md | | Not started |
-| Create SUPPORT.md | | Not started |
-| Publish compatibility matrix (macOS-first) | | Not started |
+| Create docs/index.md with reading paths | | Done |
+| Create docs/glossary.md | | Done |
+| Create docs/faq.md | | Done |
+| Create SUPPORT.md | | Done |
+| Publish compatibility matrix (macOS-first) | | Done |
 
 **Exit criteria**:
 - New users can identify supported environments and support expectations in under 5 minutes.
@@ -535,10 +535,10 @@ Define release process:
 
 | Task | Owner | Status |
 |------|-------|--------|
-| Set up bats testing framework | | Not started |
-| Write tests for core scripts | | Not started |
-| Create integration test suite | | Not started |
-| Automate restore testing | | Not started |
+| Set up bats testing framework | | Done |
+| Write tests for core scripts | | Done |
+| Create integration test suite | | Done |
+| Automate restore testing | | Done |
 
 **Exit criteria**:
 - Critical lifecycle scripts have automated test coverage.
