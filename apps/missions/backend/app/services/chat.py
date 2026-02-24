@@ -875,7 +875,6 @@ IMPORTANT:
                 response = await client.chat.completions.create(
                     model=provider.default_model or "gpt-4-turbo-preview",
                     messages=[{"role": "user", "content": check_prompt}],
-                    max_tokens=1024,
                 )
                 content = response.choices[0].message.content
             else:

@@ -229,7 +229,6 @@ class VisionTool(BaseTool):
                     ],
                 }
             ],
-            max_tokens=1024,
         )
 
         return {
