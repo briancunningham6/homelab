@@ -593,19 +593,71 @@ Use these tools when appropriate to provide better assistance. Always explain wh
         Returns:
             list[dict]: List of suggested action data
         """
-        # Only generate suggestions every few messages to avoid spam
+        # Require minimum conversation history
         message_count = len(recent_messages)
-
-        # DEBUG: Log message count for troubleshooting
         print(f"[SUGGESTIONS] Message count: {message_count}")
 
-        # Trigger every 2nd turn, aligned with observed odd counts in active chats
-        # (e.g. 65, 67, 69...) so we don't permanently miss generation.
-        if message_count < 3 or message_count % 2 == 0:
-            print(f"[SUGGESTIONS] Skipping generation (count={message_count})")
+        if message_count < 3:
+            print(f"[SUGGESTIONS] Skipping - need at least 3 messages (have {message_count})")
             return []
 
-        print(f"[SUGGESTIONS] Generating suggestions for mission {mission.id}...")
+        # Check if we recently generated suggestions to avoid spam
+        # Only check the last 2 messages to allow new suggestions after meaningful discussion
+        if len(recent_messages) >= 2:
+            recent_suggestion_count = self.db.query(SuggestedAction).filter(
+                SuggestedAction.mission_id == mission.id,
+                SuggestedAction.suggested_at >= recent_messages[-2].created_at,
+                SuggestedAction.status == ActionStatus.PENDING
+            ).count()
+
+            if recent_suggestion_count > 0:
+                print(f"[SUGGESTIONS] Skipping - {recent_suggestion_count} pending suggestions created recently")
+                return []
+
+        # Analyze last few messages to determine if suggestions would be valuable
+        last_messages = recent_messages[-4:] if len(recent_messages) >= 4 else recent_messages
+        conversation_text = " ".join([msg.content.lower() for msg in last_messages])
+
+        # Keywords that indicate actionable content where suggestions would be valuable
+        # This is intentionally broad to support any mission type
+        action_indicators = [
+            # Planning and organization
+            "plan", "schedule", "organize", "prepare", "setup", "configure",
+            # Tasks and steps
+            "step", "task", "action", "to-do", "todo", "checklist", "next",
+            # Recommendations and advice
+            "should", "recommend", "suggest", "consider", "try", "could", "might want",
+            # Goals and objectives
+            "goal", "objective", "target", "aim", "achieve", "accomplish",
+            # Time-based actions
+            "daily", "weekly", "monthly", "tomorrow", "today", "schedule", "remind",
+            # Learning and improvement
+            "learn", "practice", "improve", "exercise", "study", "train", "develop",
+            # Tracking and monitoring
+            "track", "monitor", "measure", "record", "log", "check",
+            # Problem solving
+            "fix", "resolve", "solve", "address", "handle", "deal with",
+            # Research and information
+            "research", "find", "search", "look up", "investigate", "explore",
+        ]
+
+        # Check if conversation contains actionable content
+        has_actionable_content = any(indicator in conversation_text for indicator in action_indicators)
+
+        # Also check if the assistant's last response was substantial (not just a quick acknowledgment)
+        last_assistant_msg = None
+        for msg in reversed(recent_messages):
+            if msg.role == "assistant":
+                last_assistant_msg = msg
+                break
+
+        is_substantial_response = last_assistant_msg and len(last_assistant_msg.content) > 100
+
+        if not (has_actionable_content or is_substantial_response):
+            print(f"[SUGGESTIONS] Skipping - no actionable content detected in recent conversation")
+            return []
+
+        print(f"[SUGGESTIONS] Actionable content detected - generating suggestions for mission {mission.id}...")
 
         # Build context for suggestion generation
         conversation_context = "\n".join([
