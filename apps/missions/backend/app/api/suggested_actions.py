@@ -83,6 +83,8 @@ async def update_suggested_action(
     db: Session = Depends(get_db),
 ):
     """Update a suggested action (change status, mark completed)."""
+    from datetime import datetime, timezone
+
     action = (
         db.query(SuggestedAction)
         .filter(
@@ -97,6 +99,10 @@ async def update_suggested_action(
 
     if update.status:
         action.status = update.status
+
+        # Automatically set accepted_at timestamp when status changes to accepted
+        if update.status == ActionStatus.ACCEPTED and not action.accepted_at:
+            action.accepted_at = datetime.now(timezone.utc)
 
     if update.completed_at:
         action.completed_at = update.completed_at

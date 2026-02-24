@@ -58,6 +58,7 @@ class SuggestedActionResponse(BaseModel):
     related_goal: Optional[str] = None
     suggested_at: datetime
     updated_at: Optional[datetime] = None
+    accepted_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
 
     class Config:

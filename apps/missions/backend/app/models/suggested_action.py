@@ -53,7 +53,8 @@ class SuggestedAction(Base):
     # Timestamps
     suggested_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    completed_at = Column(DateTime(timezone=True))
+    accepted_at = Column(DateTime(timezone=True))  # When user accepted the action
+    completed_at = Column(DateTime(timezone=True))  # When action was marked complete
 
     # Relationships
     mission = relationship("Mission", back_populates="suggested_actions")

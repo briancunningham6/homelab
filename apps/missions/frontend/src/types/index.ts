@@ -99,6 +99,7 @@ export interface SuggestedAction {
   related_goal?: string
   suggested_at: string
   updated_at?: string
+  accepted_at?: string
   completed_at?: string
 }
 
