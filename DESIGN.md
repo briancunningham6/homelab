@@ -141,6 +141,8 @@ graph TB
 │   ├── ollama/
 │   ├── open-webui/
 │   └── models/                  # external storage mount target
+├── dmz/                         # DMZ services (deployed on Pi, not Mac mini)
+│   └── matrix/
 ├── backups/
 │   ├── local/
 │   ├── manifests/
@@ -322,6 +324,7 @@ The architecture supports scaling beyond one Mac mini by adding specialised node
 | [docs/nodes.md](docs/nodes.md) | Node registry for multi-node deployments |
 | [docs/runbook.md](docs/runbook.md) | Operational change log |
 | [docs/dr-runbook.md](docs/dr-runbook.md) | Disaster recovery procedures and drill results |
+| [docs/dmz.md](docs/dmz.md) | DMZ architecture — internet-facing services on isolated infrastructure |
 
 ---
 

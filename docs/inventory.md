@@ -2,7 +2,7 @@
 
 > All deployed services, ports, hostnames, and backup targets | Parent: [DESIGN.md](../DESIGN.md)
 
-Last updated: YYYY-MM-DD
+Last updated: 2026-02-28
 
 ## Platform Services
 
@@ -20,6 +20,14 @@ Last updated: YYYY-MM-DD
 | Service | Hostname | Container | Ports (internal) | Ports (host) | Image | Version | Backup Scope | Owner |
 |---------|----------|-----------|-----------------|-------------|-------|---------|-------------|-------|
 | Immich | immich.home | immich-server | 2283 | — | ghcr.io/immich-app/immich-server | x.x.x | PostgreSQL + media library | Brian |
+
+## DMZ Services (homelab-pi-dmz)
+
+| Service | Hostname | Container | Ports (internal) | Ports (host) | Image | Version | Backup Scope | Owner |
+|---------|----------|-----------|-----------------|-------------|-------|---------|-------------|-------|
+| Matrix (Conduit) | matrix.yourdomain.com | conduit | 6167 | 6167 (localhost) | matrixconduit/matrix-conduit | v0.8.0 | ./data/conduit | Brian |
+
+**Note:** DMZ services are internet-facing. Ports shown are internal to the Pi; Caddy on the DMZ Pi handles external 443/8448. See [dmz.md](dmz.md) for architecture.
 
 ## Notes
 

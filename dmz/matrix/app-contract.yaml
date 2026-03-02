@@ -1,0 +1,100 @@
+# Matrix (Conduit) App Contract
+# See docs/app-spec.md for schema reference
+
+name: matrix
+version: 0.8.0
+description: Lightweight Matrix homeserver for federated messaging
+
+# Deployment location - this service runs on DMZ Pi, not Mac mini
+deployment:
+  node: homelab-pi-dmz
+  zone: dmz
+  internetExposed: true
+
+auth:
+  mode: oidc  # Optional - can use local accounts
+  provider: authentik
+  groups:
+    admin: matrix-admin
+    user: matrix-user
+  notes: |
+    Authentik OIDC is optional. Conduit supports local user registration.
+    If using OIDC, Authentik must be reachable from DMZ Pi via Tailscale.
+    First registered user becomes admin regardless of auth method.
+
+network:
+  hostname: matrix.yourdomain.com  # Public DNS, not .home
+  internalPort: 6167
+  externalPorts:
+    - 443   # HTTPS (via Caddy)
+    - 8448  # Matrix federation
+  caddy: dmz  # Uses Caddy on DMZ Pi, not Mac mini Caddy
+
+data:
+  paths:
+    - ./data/conduit  # RocksDB database, media, keys
+  sensitive:
+    - ./data/conduit/  # Contains encryption keys and message history
+
+backup:
+  includes:
+    - data/conduit
+  excludes: []
+  rpoClass: daily
+  restoreTest: documented
+  target: mac-mini  # Backed up to Mac mini via Tailscale, then to DR Pi
+  notes: |
+    Matrix data includes encryption keys, room state, and cached media.
+    Full restore required for identity continuity - incremental not supported.
+    Consider SQLite for easier backup/restore at cost of performance.
+
+agentScopes:
+  user:
+    - read        # View server status
+  child: []       # No agent access for child lane
+  admin:
+    - read        # View server status, logs
+    - configure   # Modify settings
+    - restart     # Restart service
+  notes: |
+    Matrix message content is end-to-end encrypted and not accessible to agents.
+    Agent scopes only cover server administration, not message content.
+
+health:
+  endpoint: /_matrix/client/versions
+  port: 6167
+  expectedStatus: 200
+
+security:
+  internetExposed: true
+  federationEnabled: true
+  encryptionAtRest: true  # E2EE for messages
+  notes: |
+    This is an internet-facing service on the DMZ Pi.
+    Compromise of this service does NOT grant access to Mac mini.
+    Message content is end-to-end encrypted (unreadable to server).
+    See docs/dmz.md for security model.
+
+dependencies:
+  required: []
+  optional:
+    - name: authentik
+      purpose: OIDC authentication
+      location: mac-mini (via Tailscale)
+    - name: coturn
+      purpose: TURN server for voice/video calls
+      location: dmz-pi or external
+
+operations:
+  startup: docker compose up -d
+  shutdown: docker compose down
+  update: |
+    1. Check release notes at https://conduit.rs/changelog
+    2. Update CONDUIT_VERSION in .env
+    3. docker compose pull
+    4. docker compose up -d
+    5. Verify health endpoint responds
+  rollback: |
+    1. Revert CONDUIT_VERSION in .env
+    2. docker compose pull
+    3. docker compose up -d

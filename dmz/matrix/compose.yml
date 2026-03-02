@@ -1,0 +1,76 @@
+# Matrix (Conduit) - Lightweight Matrix homeserver
+# Deployed on: DMZ Pi (homelab-pi-dmz)
+# Documentation: https://docs.conduit.rs/
+#
+# This service runs on the DMZ Raspberry Pi, NOT the Mac mini.
+# It is internet-facing and handles Matrix federation.
+
+services:
+  conduit:
+    image: matrixconduit/matrix-conduit:${CONDUIT_VERSION:-v0.8.0}
+    container_name: conduit
+    restart: unless-stopped
+    user: "1000:1000"
+    volumes:
+      - ./data/conduit:/var/lib/matrix-conduit:rw
+    environment:
+      # Server identity - MUST match your public domain
+      CONDUIT_SERVER_NAME: ${CONDUIT_SERVER_NAME}
+
+      # Database backend (rocksdb is recommended, sqlite also supported)
+      CONDUIT_DATABASE_BACKEND: ${CONDUIT_DATABASE_BACKEND:-rocksdb}
+
+      # Registration - disable after creating initial users
+      CONDUIT_ALLOW_REGISTRATION: ${CONDUIT_ALLOW_REGISTRATION:-false}
+
+      # Federation - enable for full Matrix network participation
+      CONDUIT_ALLOW_FEDERATION: ${CONDUIT_ALLOW_FEDERATION:-true}
+
+      # Trusted servers for key fetching
+      CONDUIT_TRUSTED_SERVERS: '["matrix.org"]'
+
+      # Request limits
+      CONDUIT_MAX_REQUEST_SIZE: ${CONDUIT_MAX_REQUEST_SIZE:-20000000}
+      CONDUIT_MAX_CONCURRENT_REQUESTS: ${CONDUIT_MAX_CONCURRENT_REQUESTS:-100}
+
+      # Internal port (Caddy proxies to this)
+      CONDUIT_PORT: "6167"
+      CONDUIT_ADDRESS: "0.0.0.0"
+
+      # TURN server for voice/video (optional, configure if needed)
+      # CONDUIT_TURN_URIS: '["turn:turn.example.com:3478?transport=udp"]'
+      # CONDUIT_TURN_SECRET: ${CONDUIT_TURN_SECRET}
+    ports:
+      - "127.0.0.1:6167:6167"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:6167/_matrix/client/versions"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - matrix-internal
+    labels:
+      - "com.homelab.zone=dmz"
+      - "com.homelab.service=matrix"
+
+  # Element Web - Matrix web client (optional)
+  # Uncomment to host your own Element instance
+  # element-web:
+  #   image: vectorim/element-web:${ELEMENT_VERSION:-v1.11.55}
+  #   container_name: element-web
+  #   restart: unless-stopped
+  #   volumes:
+  #     - ./config/element-config.json:/app/config.json:ro
+  #   ports:
+  #     - "127.0.0.1:8080:80"
+  #   networks:
+  #     - matrix-internal
+  #   labels:
+  #     - "com.homelab.zone=dmz"
+  #     - "com.homelab.service=element"
+
+networks:
+  matrix-internal:
+    name: matrix-internal
+    driver: bridge
