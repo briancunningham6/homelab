@@ -1,0 +1,30 @@
+# DMZ Blog - Static website served by Nginx
+# Deployed on: DMZ Pi (homelab-pi-dmz)
+
+services:
+  blog:
+    image: nginxinc/nginx-unprivileged:${BLOG_VERSION:-1.27-alpine}
+    container_name: dmz-blog
+    restart: unless-stopped
+    user: "101:101"
+    volumes:
+      - ./public:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "127.0.0.1:6180:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8080/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - blog-internal
+    labels:
+      - "com.homelab.zone=dmz"
+      - "com.homelab.service=blog"
+
+networks:
+  blog-internal:
+    name: blog-internal
+    driver: bridge

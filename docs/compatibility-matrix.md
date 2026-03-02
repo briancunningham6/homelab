@@ -9,7 +9,7 @@ or out of scope for this project phase.
 |----------|--------|--------|-------|
 | Primary host OS | macOS | Supported | Current baseline and primary development target |
 | Primary host hardware | Mac mini M4 | Supported | Main platform host profile |
-| Secondary host hardware | Raspberry Pi 5 | Supported (limited role) | Backup workflows + DMZ blog hosting role |
+| Secondary host hardware | Raspberry Pi 5 | Supported (limited role) | Backup workflows + DMZ public services (blog + Matrix) |
 | Container runtime | Docker Desktop (macOS) | Supported | Required for documented setup |
 | Remote access | Tailscale | Supported | Current transitional dependency |
 

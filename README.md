@@ -9,7 +9,7 @@ Self-hosted personal infrastructure focused on user control, repeatable operatio
 ## Current Baseline
 
 - Primary host: Mac mini M4 (macOS + Docker Desktop)
-- Secondary host: Raspberry Pi 5 (backup workflows + DMZ blog role)
+- Secondary host: Raspberry Pi 5 (backup workflows + DMZ public services)
 - Primary operator profile: solo power user
 - Priority workloads: photo management, AI-assisted coding applications, media services
 

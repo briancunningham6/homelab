@@ -72,3 +72,21 @@
         icon: mdi-target
         server: my-docker
         container: missions-backend
+
+- DMZ:
+    - DMZ SSH:
+        href: ssh://dmz@dmz-pi5
+        description: Connect to DMZ Raspberry Pi
+        icon: mdi-console-network
+    - DMZ Deploy Guide:
+        href: https://github.com/briancunningham6/homelab/blob/main/docs/dmz-operations.md
+        description: Deploy Matrix and Blog via dmz-app
+        icon: markdown
+    - Matrix (Public):
+        href: https://matrix.yourdomain.com
+        description: Federated chat homeserver
+        icon: matrix
+    - Blog (Public):
+        href: https://blog.yourdomain.com
+        description: Public static website
+        icon: mdi-post-outline

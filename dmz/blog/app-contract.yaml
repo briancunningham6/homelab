@@ -1,0 +1,70 @@
+name: blog
+version: 1.27-alpine
+description: Static public blog served from the DMZ Raspberry Pi
+
+deployment:
+  node: homelab-pi-dmz
+  zone: dmz
+  internetExposed: true
+
+auth:
+  mode: public
+  provider: none
+  notes: |
+    This service serves public static content only.
+    No login flow and no direct dependency on Authentik.
+
+network:
+  hostname: blog.yourdomain.com
+  internalPort: 8080
+  hostBind: 127.0.0.1:6180
+  externalPorts:
+    - 443
+  caddy: dmz
+
+data:
+  paths:
+    - ./public
+    - ./nginx.conf
+  sensitive: []
+
+backup:
+  includes:
+    - public
+    - nginx.conf
+  excludes: []
+  rpoClass: daily
+  restoreTest: documented
+  target: mac-mini
+
+health:
+  endpoint: /
+  port: 8080
+  expectedStatus: 200
+
+security:
+  internetExposed: true
+  nonRoot: true
+  readOnlyContent: true
+  notes: |
+    DMZ policy requires loopback-only host port publishing.
+    Public ingress must terminate at DMZ Caddy/Tailscale Funnel.
+
+dependencies:
+  required: []
+  optional:
+    - name: caddy
+      purpose: Public TLS termination and reverse proxy
+      location: dmz-pi
+
+operations:
+  startup: docker compose up -d
+  shutdown: docker compose down
+  update: |
+    1. Update BLOG_VERSION in .env
+    2. docker compose pull
+    3. docker compose up -d
+  rollback: |
+    1. Revert BLOG_VERSION in .env
+    2. docker compose pull
+    3. docker compose up -d

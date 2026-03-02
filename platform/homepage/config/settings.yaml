@@ -10,3 +10,6 @@ layout:
   Applications:
     style: row
     columns: 3
+  DMZ:
+    style: row
+    columns: 4

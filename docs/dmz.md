@@ -142,12 +142,12 @@ Same principles as Mac mini (see [security.md](security.md)):
 | Service | Hostname | Purpose | Ports |
 |---------|----------|---------|-------|
 | Blog | blog.yourdomain.com | Public website | 443 |
+| Matrix (Conduit) | matrix.yourdomain.com | Federated messaging | 443, 8448 |
 
 ### Planned
 
 | Service | Hostname | Purpose | Ports |
 |---------|----------|---------|-------|
-| Matrix (Conduit) | matrix.yourdomain.com | Federated messaging | 443, 8448 |
 | Element Web | element.yourdomain.com | Matrix web client (optional) | 443 |
 
 ---

@@ -72,6 +72,44 @@ scripts/dr-verify
 
 Exit code 0 = all critical checks passed. Non-zero = failures found.
 
+### `validate-dmz-compose [app-name|all]`
+Validate DMZ app compose files (`dmz/*/compose.yml`) for both syntax and DMZ security policy.
+
+Policy checks include:
+- no `privileged: true`
+- no Docker socket mounts
+- no `network_mode: host` unless explicitly allowlisted
+- loopback-only published ports (`127.0.0.1:*` or `[::1]:*`)
+- explicit `user:` and `healthcheck:` per service
+- DMZ zone label (`com.homelab.zone=dmz`)
+
+```bash
+scripts/validate-dmz-compose
+scripts/validate-dmz-compose matrix
+```
+
+### `dmz-app <action> [app|all]`
+Deploy and manage DMZ applications on the Raspberry Pi over SSH/Tailscale.
+
+Actions:
+- `validate`: run DMZ policy validation only
+- `sync`: validate and rsync app manifests to DMZ Pi
+- `up`: validate, sync, then `docker compose up -d` remotely
+- `down`, `restart`, `pull`, `update`, `ps`, `logs`
+
+```bash
+scripts/dmz-app validate all
+scripts/dmz-app up matrix
+scripts/dmz-app up blog
+scripts/dmz-app ps all
+scripts/dmz-app logs matrix conduit
+```
+
+Environment variables:
+- `DMZ_HOST` (default: `dmz-pi5`)
+- `DMZ_USER` (default: `dmz`)
+- `DMZ_REMOTE_DIR` (default: `/home/dmz/homelab/dmz`)
+
 ### `platform-up`
 Start all platform services in the correct boot order:
 1. Tailscale (VPN)

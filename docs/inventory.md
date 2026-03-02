@@ -25,6 +25,7 @@ Last updated: 2026-02-28
 
 | Service | Hostname | Container | Ports (internal) | Ports (host) | Image | Version | Backup Scope | Owner |
 |---------|----------|-----------|-----------------|-------------|-------|---------|-------------|-------|
+| Blog (Static) | blog.yourdomain.com | dmz-blog | 8080 | 6180 (localhost) | nginxinc/nginx-unprivileged | 1.27-alpine | ./public + nginx.conf | Brian |
 | Matrix (Conduit) | matrix.yourdomain.com | conduit | 6167 | 6167 (localhost) | matrixconduit/matrix-conduit | v0.8.0 | ./data/conduit | Brian |
 
 **Note:** DMZ services are internet-facing. Ports shown are internal to the Pi; Caddy on the DMZ Pi handles external 443/8448. See [dmz.md](dmz.md) for architecture.

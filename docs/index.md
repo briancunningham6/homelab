@@ -41,6 +41,7 @@ Central index for project documentation, organized by audience and task.
 - Bring up an app: `scripts/app-up`
 - Backup and restore workflows: `docs/ops-standard.md`, `docs/dr-runbook.md`
 - DMZ/public services planning: `docs/dmz-public-services.md`, `docs/dmz-implementation-plan.md`
+- DMZ deploy/manage workflow: `docs/dmz-operations.md`, `scripts/dmz-app`
 - Support boundaries: `SUPPORT.md`, `docs/compatibility-matrix.md`
 
 ## Core Document Inventory
@@ -75,6 +76,7 @@ Central index for project documentation, organized by audience and task.
 ### DMZ and Public Services
 - `docs/dmz-public-services.md`: Public-facing services architecture.
 - `docs/dmz-implementation-plan.md`: DMZ implementation details and phases.
+- `docs/dmz-operations.md`: DMZ deployment and management workflow.
 
 ### Onboarding and Learning
 - `docs/onboarding.md`: User onboarding and account setup.

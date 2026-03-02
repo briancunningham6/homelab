@@ -13,7 +13,11 @@ services:
     user: "1000:1000"
     volumes:
       - ./data/conduit:/var/lib/matrix-conduit:rw
+      - ./config/conduit.toml:/etc/conduit.toml:ro
     environment:
+      # Newer Conduit images require file-based configuration
+      CONDUIT_CONFIG: /etc/conduit.toml
+
       # Server identity - MUST match your public domain
       CONDUIT_SERVER_NAME: ${CONDUIT_SERVER_NAME}
 
@@ -43,7 +47,8 @@ services:
     ports:
       - "127.0.0.1:6167:6167"
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:6167/_matrix/client/versions"]
+      # Container image is scratch-like; use tini binary as process liveness probe.
+      test: ["CMD", "/proc/1/exe", "--version"]
       interval: 30s
       timeout: 10s
       retries: 3

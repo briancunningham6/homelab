@@ -63,6 +63,12 @@ CONDUIT_ALLOW_REGISTRATION=true
 CONDUIT_ALLOW_FEDERATION=true
 ```
 
+Edit `config/conduit.toml` and set your real public domain:
+
+```toml
+server_name = "matrix.yourdomain.com"
+```
+
 ### 2. Configure Caddy on DMZ Pi
 
 Add to `/etc/caddy/Caddyfile` on the DMZ Pi:
@@ -117,6 +123,22 @@ CONDUIT_ALLOW_REGISTRATION=false
 
 # Restart
 docker compose restart conduit
+```
+
+## Deploy from Mac mini (Recommended)
+
+Use DMZ deployment tooling from the control-plane repo:
+
+```bash
+# Validate DMZ policy
+scripts/validate-dmz-compose matrix
+
+# Sync + deploy Matrix on DMZ Pi
+scripts/dmz-app up matrix
+
+# View status/logs
+scripts/dmz-app ps matrix
+scripts/dmz-app logs matrix conduit
 ```
 
 ## Commands
