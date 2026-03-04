@@ -1,0 +1,157 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# platform-drift-guard
+# Lightweight homelab drift detector + optional self-heal for non-destructive fixes.
+#
+# Usage:
+#   scripts/platform-drift-guard
+#   scripts/platform-drift-guard --fix-light
+#
+# Exit codes:
+#   0 = healthy
+#   1 = drift detected (or fixed with --fix-light)
+#   2 = runtime/tooling error
+
+HOMELAB_DIR="${HOMELAB_DIR:-/Users/briancunningham/dev/homelab}"
+FIX_LIGHT=false
+if [[ "${1:-}" == "--fix-light" ]]; then
+  FIX_LIGHT=true
+fi
+
+NOW="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+ISSUES=()
+ACTIONS=()
+
+log() { echo "[drift-guard] $*"; }
+issue() { ISSUES+=("$*"); log "ISSUE: $*"; }
+action() { ACTIONS+=("$*"); log "ACTION: $*"; }
+
+need_cmd() {
+  command -v "$1" >/dev/null 2>&1 || { echo "Missing command: $1" >&2; exit 2; }
+}
+
+need_cmd docker
+need_cmd awk
+
+check_container_health() {
+  local name="$1"
+  local status
+  status="$(docker inspect "$name" --format '{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' 2>/dev/null || true)"
+
+  if [[ -z "$status" ]]; then
+    issue "$name missing"
+    if $FIX_LIGHT; then
+      case "$name" in
+        dockge)
+          action "starting dockge stack"
+          docker compose -f "$HOMELAB_DIR/platform/dockge/compose.yml" up -d || true
+          ;;
+        uptime-kuma)
+          action "starting uptime-kuma stack"
+          docker compose -f "$HOMELAB_DIR/platform/uptime-kuma/compose.yml" up -d || true
+          ;;
+        immich-server)
+          action "starting immich stack"
+          docker compose -f "$HOMELAB_DIR/apps/immich/compose.yml" up -d || true
+          ;;
+      esac
+    fi
+    return
+  fi
+
+  local run health
+  run="$(echo "$status" | awk '{print $1}')"
+  health="$(echo "$status" | awk '{print $2}')"
+
+  if [[ "$run" != "running" ]]; then
+    issue "$name state=$run"
+    if $FIX_LIGHT; then
+      action "restarting $name"
+      docker restart "$name" >/dev/null 2>&1 || true
+    fi
+  fi
+
+  if [[ "$health" == "unhealthy" ]]; then
+    issue "$name health=unhealthy"
+    if $FIX_LIGHT; then
+      action "restarting unhealthy $name"
+      docker restart "$name" >/dev/null 2>&1 || true
+    fi
+  fi
+}
+
+# 1) dockge stack mapping sanity
+DOCKGE_ENV="$HOMELAB_DIR/platform/dockge/.env"
+if [[ ! -f "$DOCKGE_ENV" ]]; then
+  issue "dockge .env missing ($DOCKGE_ENV)"
+  if $FIX_LIGHT; then
+    action "creating dockge .env with correct stacks dir"
+    mkdir -p "$(dirname "$DOCKGE_ENV")"
+    cat > "$DOCKGE_ENV" <<EOF
+DOCKGE_STACKS_DIR_HOST=/Users/briancunningham/dev/homelab/.dockge-stacks
+EOF
+  fi
+else
+  if ! grep -q '^DOCKGE_STACKS_DIR_HOST=/Users/briancunningham/dev/homelab/.dockge-stacks$' "$DOCKGE_ENV"; then
+    issue "dockge stacks path drift in .env"
+    if $FIX_LIGHT; then
+      action "normalizing dockge stacks path"
+      if grep -q '^DOCKGE_STACKS_DIR_HOST=' "$DOCKGE_ENV"; then
+        sed -i '' 's#^DOCKGE_STACKS_DIR_HOST=.*#DOCKGE_STACKS_DIR_HOST=/Users/briancunningham/dev/homelab/.dockge-stacks#' "$DOCKGE_ENV"
+      else
+        echo 'DOCKGE_STACKS_DIR_HOST=/Users/briancunningham/dev/homelab/.dockge-stacks' >> "$DOCKGE_ENV"
+      fi
+    fi
+  fi
+fi
+
+# 2) uptime-kuma corruption early signal (huge wal)
+KUMA_DIR="$HOMELAB_DIR/platform/uptime-kuma/data"
+if [[ -f "$KUMA_DIR/kuma.db-wal" ]]; then
+  WAL_BYTES=$(stat -f%z "$KUMA_DIR/kuma.db-wal" 2>/dev/null || echo 0)
+  # warn at > 500MB
+  if [[ "$WAL_BYTES" -gt 524288000 ]]; then
+    issue "uptime-kuma WAL unusually large ($(($WAL_BYTES/1024/1024)) MB)"
+  fi
+fi
+
+# 3) immich credentials sync check (app env -> db login test)
+IMMICH_ENV="$HOMELAB_DIR/apps/immich/.env"
+if [[ -f "$IMMICH_ENV" ]]; then
+  IMMICH_PASS="$(awk -F= '/^DB_PASSWORD=/{print $2}' "$IMMICH_ENV" | tail -n1)"
+  if [[ -n "$IMMICH_PASS" ]]; then
+    if ! docker run --rm --network postgres-net -e PGPASSWORD="$IMMICH_PASS" postgres:17-alpine \
+      psql -h postgres -U immich -d immich -tAc 'select 1' >/dev/null 2>&1; then
+      issue "immich db credential check failed"
+    fi
+  else
+    issue "immich .env missing DB_PASSWORD"
+  fi
+else
+  issue "immich .env missing ($IMMICH_ENV)"
+fi
+
+# 4) core container health
+check_container_health dockge
+check_container_health uptime-kuma
+check_container_health immich-server
+
+# 5) homepage refresh after fixes
+if $FIX_LIGHT && [[ ${#ACTIONS[@]} -gt 0 ]]; then
+  action "restarting homepage to refresh status cache"
+  docker compose -f "$HOMELAB_DIR/platform/homepage/compose.yml" restart homepage >/dev/null 2>&1 || true
+fi
+
+if [[ ${#ISSUES[@]} -eq 0 ]]; then
+  echo "[$NOW] drift-guard: healthy"
+  exit 0
+fi
+
+echo "[$NOW] drift-guard: detected ${#ISSUES[@]} issue(s)"
+printf ' - %s\n' "${ISSUES[@]}"
+if [[ ${#ACTIONS[@]} -gt 0 ]]; then
+  echo "[$NOW] drift-guard: actions applied"
+  printf ' - %s\n' "${ACTIONS[@]}"
+fi
+exit 1

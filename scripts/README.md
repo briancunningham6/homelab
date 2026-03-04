@@ -131,6 +131,20 @@ Stop all services in reverse boot order (apps first, Tailscale last).
 scripts/platform-down
 ```
 
+### `platform-drift-guard [--fix-light]`
+Detect common config/runtime drift for critical platform apps (Dockge, Uptime Kuma, Immich).
+
+```bash
+scripts/platform-drift-guard
+scripts/platform-drift-guard --fix-light
+```
+
+Checks include:
+- Dockge stacks path sanity (`platform/dockge/.env`)
+- Immich DB credential validation against Postgres
+- Uptime Kuma WAL growth early-warning signal
+- Core container runtime/health (`dockge`, `uptime-kuma`, `immich-server`)
+
 ## Boot Sequence
 
 Services are started in a specific order because:
