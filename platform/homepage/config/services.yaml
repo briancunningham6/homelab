@@ -72,6 +72,12 @@
         icon: mdi-target
         server: my-docker
         container: missions-backend
+    - Trader:
+        href: http://trader.home
+        description: Crypto Trading
+        icon: mdi-chart-line
+        server: my-docker
+        container: trader-app
 
 - DMZ:
     - DMZ SSH:
@@ -87,6 +93,6 @@
         description: Federated chat homeserver
         icon: matrix
     - Blog (Public):
-        href: https://blog.yourdomain.com
+        href: https://blog.junemara.com
         description: Public static website
         icon: mdi-post-outline

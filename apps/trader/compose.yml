@@ -1,0 +1,31 @@
+name: trader
+
+services:
+  trader:
+    build:
+      context: ${TRADER_SOURCE_PATH}
+      dockerfile: Dockerfile
+    image: trader:latest
+    container_name: trader-app
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Always connect to the shared platform postgres, regardless of .env
+      DATABASE_HOST: postgres
+    volumes:
+      - ./data/logs:/app/logs
+    networks:
+      - caddy-net
+      - postgres-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:4000/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
+networks:
+  caddy-net:
+    external: true
+  postgres-net:
+    external: true

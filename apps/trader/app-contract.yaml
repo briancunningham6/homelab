@@ -1,0 +1,49 @@
+name: trader
+version: 1.0.0
+
+auth:
+  mode: none
+  notes: >
+    Trader has its own bcrypt user authentication. Authentik OIDC integration
+    is out of scope for initial deployment — the app would need upstream changes
+    to support OIDC. Use the app's built-in login for now.
+
+network:
+  hostname: trader.home
+  internalPort: 4000
+  exposure: lan-and-tailscale
+
+source:
+  repo: https://github.com/briancunningham6/trader
+  branch: trader-homelab
+  buildLocal: true
+  notes: >
+    Built from source on the homelab host. No pre-built image registry.
+    TRADER_SOURCE_PATH in .env points to the local checkout.
+
+data:
+  paths:
+    - ./data/logs
+  database:
+    host: postgres
+    name: trader_prod
+    user: trader
+  notes: >
+    All persistent trading state (orders, trades, settings, users) lives in
+    the shared platform postgres under the trader_prod database.
+    Logs are written to ./data/logs inside the container.
+
+backup:
+  includes:
+    - platform/postgres (trader_prod database via pg_dump)
+  excludes:
+    - data/logs
+  rpoClass: daily
+  restoreTest: documented
+
+agentScopes:
+  user: [read]
+  admin: [read, write, configure]
+
+health:
+  endpoint: /

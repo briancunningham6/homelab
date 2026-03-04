@@ -79,3 +79,7 @@ http://jellyfin.home {
 http://openclaw.home {
     reverse_proxy 127.0.0.1:18789
 }
+
+http://trader.home {
+    reverse_proxy trader-app:4000
+}
