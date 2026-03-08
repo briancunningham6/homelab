@@ -29,6 +29,7 @@ class MissionUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=200)
     description: Optional[str] = None
     goals: Optional[str] = None
+    notes: Optional[str] = None
     category_id: Optional[UUID] = None
     llm_provider_id: Optional[UUID] = None
     model_override: Optional[str] = None
@@ -41,6 +42,7 @@ class MissionResponse(MissionBase):
 
     id: UUID
     status: str
+    notes: Optional[str] = None
     last_checked_at: Optional[datetime] = None
     next_check_at: Optional[datetime] = None
     created_at: datetime

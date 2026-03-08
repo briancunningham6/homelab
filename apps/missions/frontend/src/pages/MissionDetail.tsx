@@ -4,9 +4,10 @@ import { useMission, useMissionFiles, useDeleteMission, useDeleteFile, useUpdate
 import { FileUpload } from '../components/FileUpload'
 import { Chat } from '../components/Chat'
 import SuggestedActions from '../components/SuggestedActions'
+import { MissionNotes } from '../components/MissionNotes'
 import '../styles/MissionDetail.css'
 
-type TabType = 'overview' | 'agent'
+type TabType = 'overview' | 'agent' | 'notes'
 
 export const MissionDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>()
@@ -196,6 +197,12 @@ export const MissionDetail: React.FC = () => {
           Agent
           {hasPendingSuggestions && <span className="suggestion-indicator"></span>}
         </button>
+        <button
+          className={`tab ${activeTab === 'notes' ? 'active' : ''}`}
+          onClick={() => setActiveTab('notes')}
+        >
+          Notes
+        </button>
       </div>
 
       <div className="tab-content">
@@ -299,6 +306,12 @@ export const MissionDetail: React.FC = () => {
                 </div>
               )}
             </section>
+          </div>
+        )}
+
+        {activeTab === 'notes' && (
+          <div className="notes-tab">
+            <MissionNotes missionId={id!} initialNotes={mission.notes} />
           </div>
         )}
 

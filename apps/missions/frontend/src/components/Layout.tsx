@@ -28,6 +28,9 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
             <Link to="/missions/new" className={isActive('/missions/new')}>
               New Mission
             </Link>
+            <Link to="/capture" className={`nav-capture ${isActive('/capture')}`}>
+              Quick Capture
+            </Link>
             <Link to="/settings" className={isActive('/settings')}>
               Settings
             </Link>

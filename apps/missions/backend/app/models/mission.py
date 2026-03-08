@@ -29,6 +29,9 @@ class Mission(Base):
     last_checked_at = Column(DateTime(timezone=True))
     next_check_at = Column(DateTime(timezone=True))
 
+    # Notes — freeform markdown, included verbatim in the agent's system prompt
+    notes = Column(Text)
+
     # Status
     status = Column(String(20), default="active")  # active, paused, completed, archived
 

@@ -184,6 +184,10 @@ You have access to tools that can help you:
 
 Use these tools when appropriate to provide better assistance. Always explain what you're doing when using a tool."""
 
+        # Add notes if present — included verbatim so the agent treats them as authoritative
+        if mission.notes and mission.notes.strip():
+            prompt += f"\n\nNotes:\n{mission.notes.strip()}"
+
         # Add context files information
         context_files = self.db.query(MissionFile).filter(
             MissionFile.mission_id == mission.id
@@ -599,6 +603,16 @@ Use these tools when appropriate to provide better assistance. Always explain wh
 
         if message_count < 3:
             print(f"[SUGGESTIONS] Skipping - need at least 3 messages (have {message_count})")
+            return []
+
+        # Don't generate if there are already 6 or more pending suggestions
+        pending_count = self.db.query(SuggestedAction).filter(
+            SuggestedAction.mission_id == mission.id,
+            SuggestedAction.status == ActionStatus.PENDING
+        ).count()
+
+        if pending_count >= 6:
+            print(f"[SUGGESTIONS] Skipping - already have {pending_count} pending suggestions (limit: 6)")
             return []
 
         # Check if we recently generated suggestions to avoid spam

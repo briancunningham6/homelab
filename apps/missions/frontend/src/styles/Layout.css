@@ -55,6 +55,21 @@
   background: #E3F2FD;
 }
 
+.nav a.nav-capture {
+  color: #fff;
+  background: #2196F3;
+}
+
+.nav a.nav-capture:hover {
+  background: #1976D2;
+  color: #fff;
+}
+
+.nav a.nav-capture.active {
+  background: #1565C0;
+  color: #fff;
+}
+
 .main-content {
   flex: 1;
   max-width: 1200px;

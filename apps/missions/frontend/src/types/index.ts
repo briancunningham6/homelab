@@ -7,6 +7,7 @@ export interface Mission {
   name: string
   description: string
   goals: string
+  notes?: string
   category_id?: string
   llm_provider_id?: string
   model_override?: string
@@ -76,6 +77,7 @@ export interface MissionUpdate {
   name?: string
   description?: string
   goals?: string
+  notes?: string
   category_id?: string
   llm_provider_id?: string
   model_override?: string

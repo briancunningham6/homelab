@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from app.config import settings
-from app.api import missions, files, health, providers, messages, chat, suggested_actions
+from app.api import missions, files, health, providers, messages, chat, suggested_actions, capture
 from app.services.scheduler import mission_scheduler
 
 
@@ -44,6 +44,7 @@ app.include_router(suggested_actions.router, prefix="/api/missions", tags=["sugg
 app.include_router(providers.router)
 app.include_router(messages.router)
 app.include_router(chat.router)
+app.include_router(capture.router, tags=["capture"])
 
 
 @app.get("/")
