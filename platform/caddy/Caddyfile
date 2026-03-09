@@ -83,3 +83,7 @@ http://openclaw.home {
 http://trader.home {
     reverse_proxy trader-app:4000
 }
+
+http://ntfy.home {
+    reverse_proxy ntfy:80
+}

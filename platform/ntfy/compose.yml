@@ -1,0 +1,29 @@
+services:
+  ntfy:
+    image: binwiederhier/ntfy:v2.11.0
+    container_name: ntfy
+    restart: unless-stopped
+    hostname: ntfy
+    command: serve
+    environment:
+      - TZ=${TZ:-America/New_York}
+      - NTFY_BASE_URL=${NTFY_BASE_URL:-http://ntfy.home}
+      - NTFY_CACHE_FILE=/var/cache/ntfy/cache.db
+      - NTFY_AUTH_FILE=/var/lib/ntfy/auth.db
+      - NTFY_AUTH_DEFAULT_ACCESS=read-write
+      - NTFY_BEHIND_PROXY=true
+    volumes:
+      - ./data/cache:/var/cache/ntfy
+      - ./data/lib:/var/lib/ntfy
+    networks:
+      - caddy-net
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--tries=1", "--spider", "http://localhost:80/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+networks:
+  caddy-net:
+    external: true

@@ -72,6 +72,12 @@
         icon: mdi-target
         server: my-docker
         container: missions-backend
+    - Ntfy:
+        href: http://ntfy.home
+        description: Push Notifications
+        icon: ntfy
+        server: my-docker
+        container: ntfy
     - Trader:
         href: http://trader.home
         description: Crypto Trading

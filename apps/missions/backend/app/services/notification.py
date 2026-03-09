@@ -18,6 +18,7 @@ class NotificationService:
         message: str,
         priority: str = "default",
         tags: Optional[list[str]] = None,
+        mission_id: Optional[str] = None,
     ) -> bool:
         """Send a mission alert notification.
 
@@ -27,6 +28,7 @@ class NotificationService:
             message: Notification message
             priority: Priority level (min, low, default, high, urgent)
             tags: Optional list of tags/emojis
+            mission_id: Optional mission UUID for deep-link click action
 
         Returns:
             bool: True if notification sent successfully
@@ -42,7 +44,8 @@ class NotificationService:
                 headers["Tags"] = ",".join(tags)
 
             # Add click action to open mission detail page
-            headers["Click"] = f"http://missions.home/missions/{mission_name}"
+            if mission_id:
+                headers["Click"] = f"http://missions.home/missions/{mission_id}"
 
             async with httpx.AsyncClient() as client:
                 response = await client.post(
@@ -63,6 +66,7 @@ class NotificationService:
         mission_name: str,
         suggestions_count: int,
         summary: str,
+        mission_id: Optional[str] = None,
     ) -> bool:
         """Send a mission check summary notification.
 
@@ -70,6 +74,7 @@ class NotificationService:
             mission_name: Name of the mission
             suggestions_count: Number of new suggestions
             summary: Brief summary of the check
+            mission_id: Optional mission UUID for deep-link click action
 
         Returns:
             bool: True if notification sent successfully
@@ -85,4 +90,5 @@ class NotificationService:
             message=summary,
             priority=priority,
             tags=tags,
+            mission_id=mission_id,
         )

@@ -30,6 +30,22 @@ export const MissionDetail: React.FC = () => {
   const updateMission = useUpdateMission()
 
   const hasPendingSuggestions = pendingActions && pendingActions.length > 0
+  const [notifState, setNotifState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
+
+  const handleTestNotification = async () => {
+    setNotifState('sending')
+    try {
+      const res = await fetch('/api/notifications/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mission_id: id, title: `Mission: ${mission?.name}`, message: 'Notifications are working.' }),
+      })
+      setNotifState(res.ok ? 'sent' : 'error')
+    } catch {
+      setNotifState('error')
+    }
+    setTimeout(() => setNotifState('idle'), 3000)
+  }
 
   const handleDelete = async () => {
     if (!confirm('Are you sure you want to delete this mission? This cannot be undone.')) {
@@ -143,6 +159,14 @@ export const MissionDetail: React.FC = () => {
               </>
             ) : (
               <>
+                <button
+                  className="btn btn-secondary btn-small"
+                  onClick={handleTestNotification}
+                  disabled={notifState === 'sending'}
+                  title="Send a test notification to your phone"
+                >
+                  {notifState === 'sending' ? '…' : notifState === 'sent' ? '✓ Sent' : notifState === 'error' ? '✗ Failed' : '🔔'}
+                </button>
                 <button className="btn btn-primary btn-small" onClick={handleEdit}>
                   Edit
                 </button>

@@ -103,6 +103,7 @@ class MissionScheduler:
                     mission_name=mission.name,
                     suggestions_count=result["suggestions_count"],
                     summary=result["summary"],
+                    mission_id=str(mission.id),
                 )
 
                 print(f"[SCHEDULER] Check complete for '{mission.name}': {result['suggestions_count']} suggestions")
