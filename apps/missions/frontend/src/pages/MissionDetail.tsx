@@ -5,9 +5,10 @@ import { FileUpload } from '../components/FileUpload'
 import { Chat } from '../components/Chat'
 import SuggestedActions from '../components/SuggestedActions'
 import { MissionNotes } from '../components/MissionNotes'
+import { MissionTasks } from '../components/MissionTasks'
 import '../styles/MissionDetail.css'
 
-type TabType = 'overview' | 'agent' | 'notes'
+type TabType = 'overview' | 'agent' | 'notes' | 'tasks'
 
 export const MissionDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>()
@@ -227,6 +228,12 @@ export const MissionDetail: React.FC = () => {
         >
           Notes
         </button>
+        <button
+          className={`tab ${activeTab === 'tasks' ? 'active' : ''}`}
+          onClick={() => setActiveTab('tasks')}
+        >
+          Tasks
+        </button>
       </div>
 
       <div className="tab-content">
@@ -336,6 +343,12 @@ export const MissionDetail: React.FC = () => {
         {activeTab === 'notes' && (
           <div className="notes-tab">
             <MissionNotes missionId={id!} initialNotes={mission.notes} />
+          </div>
+        )}
+
+        {activeTab === 'tasks' && (
+          <div className="tasks-tab">
+            <MissionTasks missionId={id!} />
           </div>
         )}
 

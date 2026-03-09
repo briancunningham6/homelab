@@ -7,6 +7,10 @@ import type {
   SuggestedAction,
   SuggestedActionCreate,
   SuggestedActionUpdate,
+  MissionTask,
+  TaskCreate,
+  TaskUpdate,
+  TaskReorderItem,
 } from '../types'
 
 // Use same-origin API path in browser (proxied by Vite/Caddy)
@@ -105,4 +109,28 @@ export const updateSuggestedAction = async (
 
 export const deleteSuggestedAction = async (missionId: string, actionId: string): Promise<void> => {
   await apiClient.delete(`/missions/${missionId}/suggested-actions/${actionId}`)
+}
+
+// Tasks
+export const getTasks = async (missionId: string): Promise<MissionTask[]> => {
+  const response = await apiClient.get(`/missions/${missionId}/tasks/`)
+  return response.data
+}
+
+export const createTask = async (missionId: string, data: TaskCreate): Promise<MissionTask> => {
+  const response = await apiClient.post(`/missions/${missionId}/tasks/`, data)
+  return response.data
+}
+
+export const updateTask = async (missionId: string, taskId: string, data: TaskUpdate): Promise<MissionTask> => {
+  const response = await apiClient.patch(`/missions/${missionId}/tasks/${taskId}`, data)
+  return response.data
+}
+
+export const deleteTask = async (missionId: string, taskId: string): Promise<void> => {
+  await apiClient.delete(`/missions/${missionId}/tasks/${taskId}`)
+}
+
+export const reorderTasks = async (missionId: string, items: TaskReorderItem[]): Promise<void> => {
+  await apiClient.post(`/missions/${missionId}/tasks/reorder`, items)
 }

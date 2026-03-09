@@ -2,12 +2,14 @@
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.triggers.cron import CronTrigger
-from datetime import datetime, timezone
+from collections import defaultdict
+from datetime import datetime, date, timezone
 from sqlalchemy.orm import Session
 import asyncio
 
 from app.database import SessionLocal
 from app.models.mission import Mission
+from app.models.mission_task import MissionTask
 from app.services.chat import ChatService
 from app.services.notification import NotificationService
 
@@ -30,6 +32,15 @@ class MissionScheduler:
             trigger=IntervalTrigger(minutes=1),
             id="check_due_missions",
             name="Check due missions",
+            replace_existing=True,
+        )
+
+        # Send task due-date reminders every day at 9am
+        self.scheduler.add_job(
+            func=self.check_due_tasks,
+            trigger=CronTrigger(hour=9, minute=0),
+            id="check_due_tasks",
+            name="Send task due-date reminders",
             replace_existing=True,
         )
 
@@ -114,6 +125,72 @@ class MissionScheduler:
             print(f"[SCHEDULER] Error checking mission {mission.id}: {e}")
             import traceback
             traceback.print_exc()
+
+    async def check_due_tasks(self):
+        """Send reminder notifications for tasks due today (or overdue and not yet notified)."""
+        db = SessionLocal()
+        try:
+            today = date.today()
+
+            due_tasks = (
+                db.query(MissionTask)
+                .join(Mission, MissionTask.mission_id == Mission.id)
+                .filter(
+                    MissionTask.due_date <= today,
+                    MissionTask.status != "done",
+                    MissionTask.reminder_sent == False,  # noqa: E712
+                )
+                .all()
+            )
+
+            if not due_tasks:
+                print("[SCHEDULER] No task reminders to send")
+                return
+
+            # Group tasks by mission so we send one notification per mission
+            by_mission: dict = defaultdict(list)
+            for task in due_tasks:
+                by_mission[task.mission_id].append(task)
+
+            for mission_id, tasks in by_mission.items():
+                mission = db.query(Mission).filter(Mission.id == mission_id).first()
+                if not mission:
+                    continue
+
+                overdue = [t for t in tasks if t.due_date < today]
+                due_today = [t for t in tasks if t.due_date == today]
+
+                lines = []
+                if due_today:
+                    lines.append(f"Due today: {', '.join(t.title for t in due_today)}")
+                if overdue:
+                    lines.append(f"Overdue: {', '.join(t.title for t in overdue)}")
+
+                count = len(tasks)
+                title = f"{count} task{'s' if count != 1 else ''} due"
+                message = "\n".join(lines)
+
+                sent = await self.notification_service.send_mission_alert(
+                    mission_name=mission.name,
+                    title=title,
+                    message=message,
+                    priority="high",
+                    tags=["calendar", "red_circle"],
+                    mission_id=str(mission.id),
+                )
+
+                if sent:
+                    for task in tasks:
+                        task.reminder_sent = True
+                    db.commit()
+                    print(f"[SCHEDULER] Sent task reminders for '{mission.name}': {count} task(s)")
+
+        except Exception as e:
+            print(f"[SCHEDULER] Error in check_due_tasks: {e}")
+            import traceback
+            traceback.print_exc()
+        finally:
+            db.close()
 
 
 # Global scheduler instance

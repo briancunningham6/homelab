@@ -103,6 +103,11 @@ const SuggestedActions = ({ missionId }: SuggestedActionsProps) => {
               </span>
             </div>
             <h4 className="action-title">{action.title}</h4>
+            {action.creates_task && (
+              <div className="action-creates-task" title={action.task_due_date ? `Accepting will create a task due ${action.task_due_date}` : 'Accepting will add this to your task list'}>
+                📋 Creates task{action.task_due_date ? ` · due ${action.task_due_date}` : ''}
+              </div>
+            )}
             <p className="action-description">{action.description}</p>
             {action.reasoning && (
               <div className="action-reasoning">

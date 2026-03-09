@@ -303,3 +303,16 @@
     margin-top: 8px;
   }
 }
+
+.action-creates-task {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1565C0;
+  background: #E3F2FD;
+  border-radius: 20px;
+  padding: 2px 10px;
+  margin-bottom: 6px;
+}

@@ -104,6 +104,25 @@ async def update_suggested_action(
         if update.status == ActionStatus.ACCEPTED and not action.accepted_at:
             action.accepted_at = datetime.now(timezone.utc)
 
+            # Auto-create a task if this suggestion is flagged as task-creating
+            if action.creates_task:
+                from app.models.mission_task import MissionTask
+
+                max_order = (
+                    db.query(MissionTask.sort_order)
+                    .filter(MissionTask.mission_id == mission_id, MissionTask.status != "done")
+                    .order_by(MissionTask.sort_order.desc())
+                    .scalar()
+                )
+                task = MissionTask(
+                    mission_id=mission_id,
+                    title=action.title,
+                    due_date=action.task_due_date,
+                    status="open",
+                    sort_order=(max_order or 0) + 1,
+                )
+                db.add(task)
+
     if update.completed_at:
         action.completed_at = update.completed_at
 

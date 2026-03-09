@@ -14,6 +14,17 @@ from app.utils.encryption import decrypt_api_key
 from app.tools import tool_registry
 
 
+def _parse_suggestion_date(value):
+    """Parse a date string from LLM suggestion output, returning a date or None."""
+    if not value or value == "null":
+        return None
+    try:
+        from datetime import date
+        return date.fromisoformat(str(value))
+    except (ValueError, TypeError):
+        return None
+
+
 class ChatService:
     """Service for handling LLM chat interactions."""
 
@@ -181,6 +192,7 @@ You have access to tools that can help you:
 - web_search: Search the web for current information
 - analyze_image: Analyze images uploaded by the user to extract text, numbers, or visual information
 - parse_document: Extract text from uploaded documents (PDFs, images with OCR)
+- create_task: Create a task in this mission's task list. Use this when the user asks you to remember something, create a reminder, add a to-do, or track an action that needs to be done. Always extract the task title and due date (if mentioned) before calling this tool.
 
 Use these tools when appropriate to provide better assistance. Always explain what you're doing when using a tool."""
 
@@ -258,6 +270,7 @@ Use these tools when appropriate to provide better assistance. Always explain wh
 
             # If tools were used, execute them and continue conversation
             if tool_uses:
+                mission_id_val = messages[0].mission_id if messages else None
                 for tool_use in tool_uses:
                     yield {
                         "type": "tool_start",
@@ -265,9 +278,11 @@ Use these tools when appropriate to provide better assistance. Always explain wh
                         "tool_id": tool_use["id"],
                     }
 
-                    # Execute tool
+                    # Execute tool — inject db_session and mission_id for tools that need them
                     result = await tool_registry.execute(
                         tool_use["name"],
+                        db_session=self.db,
+                        mission_id=mission_id_val,
                         **tool_use["input"]
                     )
 
@@ -363,6 +378,8 @@ Use these tools when appropriate to provide better assistance. Always explain wh
                             priority=ActionPriority(suggestion["priority"]),
                             status=ActionStatus.PENDING,
                             related_goal=suggestion.get("related_goal"),
+                            creates_task=bool(suggestion.get("creates_task", False)),
+                            task_due_date=_parse_suggestion_date(suggestion.get("task_due_date")),
                         )
                         self.db.add(action)
 
@@ -457,6 +474,7 @@ Use these tools when appropriate to provide better assistance. Always explain wh
 
             # Execute tools if any were called
             if tool_calls:
+                mission_id_val = messages[0].mission_id if messages else None
                 for tool_call in tool_calls:
                     yield {
                         "type": "tool_start",
@@ -470,8 +488,13 @@ Use these tools when appropriate to provide better assistance. Always explain wh
                     except json.JSONDecodeError:
                         args = {}
 
-                    # Execute tool
-                    result = await tool_registry.execute(tool_call["name"], **args)
+                    # Execute tool — inject db_session and mission_id for tools that need them
+                    result = await tool_registry.execute(
+                        tool_call["name"],
+                        db_session=self.db,
+                        mission_id=mission_id_val,
+                        **args
+                    )
 
                     # Save tool call
                     tool_msg = Message(
@@ -565,6 +588,8 @@ Use these tools when appropriate to provide better assistance. Always explain wh
                             priority=ActionPriority(suggestion["priority"]),
                             status=ActionStatus.PENDING,
                             related_goal=suggestion.get("related_goal"),
+                            creates_task=bool(suggestion.get("creates_task", False)),
+                            task_due_date=_parse_suggestion_date(suggestion.get("task_due_date")),
                         )
                         self.db.add(action)
 
@@ -694,9 +719,11 @@ For each suggestion, provide:
 4. reasoning: Why this action would help (max 150 chars)
 5. priority: "high", "medium", or "low"
 6. related_goal: Which mission goal this relates to (optional)
+7. creates_task: true if accepting this suggestion should automatically add it to the mission task list (use for concrete to-do items the user should track), false otherwise
+8. task_due_date: If creates_task is true and a specific date was mentioned, provide it as "YYYY-MM-DD". Otherwise omit or set null.
 
 Return ONLY valid JSON array format:
-[{{"type": "user_action", "title": "...", "description": "...", "reasoning": "...", "priority": "high", "related_goal": "..."}}]
+[{{"type": "user_action", "title": "...", "description": "...", "reasoning": "...", "priority": "high", "related_goal": "...", "creates_task": false, "task_due_date": null}}]
 
 Only suggest actions that are:
 - Concrete and actionable

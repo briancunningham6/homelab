@@ -99,6 +99,8 @@ export interface SuggestedAction {
   priority: ActionPriority
   status: ActionStatus
   related_goal?: string
+  creates_task: boolean
+  task_due_date?: string
   suggested_at: string
   updated_at?: string
   accepted_at?: string
@@ -117,4 +119,34 @@ export interface SuggestedActionCreate {
 export interface SuggestedActionUpdate {
   status?: ActionStatus
   completed_at?: string
+}
+
+export type TaskStatus = 'open' | 'in_progress' | 'done'
+
+export interface MissionTask {
+  id: string
+  mission_id: string
+  title: string
+  due_date?: string
+  status: TaskStatus
+  sort_order: number
+  created_at: string
+  updated_at?: string
+  completed_at?: string
+}
+
+export interface TaskCreate {
+  title: string
+  due_date?: string
+}
+
+export interface TaskUpdate {
+  title?: string
+  due_date?: string
+  status?: TaskStatus
+}
+
+export interface TaskReorderItem {
+  id: string
+  sort_order: number
 }

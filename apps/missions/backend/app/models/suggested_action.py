@@ -1,5 +1,5 @@
 """Suggested action model."""
-from sqlalchemy import Column, String, Text, Enum, ForeignKey, DateTime, func
+from sqlalchemy import Column, String, Text, Enum, ForeignKey, DateTime, Date, Boolean, func
 from sqlalchemy.dialects.postgresql import UUID, ENUM as PG_ENUM
 from sqlalchemy.orm import relationship
 import uuid
@@ -49,6 +49,10 @@ class SuggestedAction(Base):
     priority = Column(PG_ENUM(ActionPriority, name='actionpriority', create_type=False, values_callable=lambda x: [e.value for e in x]), nullable=False, default=ActionPriority.MEDIUM)
     status = Column(PG_ENUM(ActionStatus, name='actionstatus', create_type=False, values_callable=lambda x: [e.value for e in x]), nullable=False, default=ActionStatus.PENDING)
     related_goal = Column(Text)  # Link to specific mission goal
+
+    # Task creation — if True, accepting this action will auto-create a task
+    creates_task = Column(Boolean, nullable=False, default=False)
+    task_due_date = Column(Date, nullable=True)
 
     # Timestamps
     suggested_at = Column(DateTime(timezone=True), server_default=func.now())

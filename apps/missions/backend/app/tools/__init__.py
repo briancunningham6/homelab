@@ -3,6 +3,7 @@ from .base import BaseTool, ToolRegistry
 from .web_search import WebSearchTool
 from .document_parser import DocumentParserTool
 from .vision import VisionTool
+from .create_task import CreateTaskTool
 
 # Global tool registry
 tool_registry = ToolRegistry()
@@ -11,6 +12,7 @@ tool_registry = ToolRegistry()
 tool_registry.register(WebSearchTool())
 tool_registry.register(DocumentParserTool())
 tool_registry.register(VisionTool())
+tool_registry.register(CreateTaskTool())
 
 __all__ = [
     "BaseTool",
@@ -18,5 +20,6 @@ __all__ = [
     "WebSearchTool",
     "DocumentParserTool",
     "VisionTool",
+    "CreateTaskTool",
     "tool_registry",
 ]

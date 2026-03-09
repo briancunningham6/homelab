@@ -1,7 +1,7 @@
 """Suggested action schemas."""
 from pydantic import BaseModel
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, date
 from typing import Optional
 from enum import Enum
 
@@ -56,6 +56,8 @@ class SuggestedActionResponse(BaseModel):
     priority: ActionPriority
     status: ActionStatus
     related_goal: Optional[str] = None
+    creates_task: bool = False
+    task_due_date: Optional[date] = None
     suggested_at: datetime
     updated_at: Optional[datetime] = None
     accepted_at: Optional[datetime] = None

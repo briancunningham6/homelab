@@ -45,3 +45,4 @@ class Mission(Base):
     files = relationship("MissionFile", back_populates="mission", cascade="all, delete-orphan")
     messages = relationship("Message", back_populates="mission", cascade="all, delete-orphan")
     suggested_actions = relationship("SuggestedAction", back_populates="mission", cascade="all, delete-orphan")
+    tasks = relationship("MissionTask", back_populates="mission", cascade="all, delete-orphan")

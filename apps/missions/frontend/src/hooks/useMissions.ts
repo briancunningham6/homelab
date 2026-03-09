@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import * as api from '../api/client'
-import type { MissionCreate, MissionUpdate, SuggestedActionCreate, SuggestedActionUpdate } from '../types'
+import type { MissionCreate, MissionUpdate, SuggestedActionCreate, SuggestedActionUpdate, TaskCreate, TaskUpdate, TaskReorderItem } from '../types'
 
 // Query keys
 export const missionKeys = {
@@ -11,6 +11,7 @@ export const missionKeys = {
   detail: (id: string) => [...missionKeys.details(), id] as const,
   files: (id: string) => [...missionKeys.all, 'files', id] as const,
   suggestedActions: (id: string) => [...missionKeys.all, 'suggested-actions', id] as const,
+  tasks: (id: string) => [...missionKeys.all, 'tasks', id] as const,
 }
 
 // Get all missions
@@ -149,6 +150,59 @@ export const useDeleteSuggestedAction = () => {
       api.deleteSuggestedAction(missionId, actionId),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: missionKeys.suggestedActions(variables.missionId) })
+    },
+  })
+}
+
+// Tasks
+export const useTasks = (missionId: string) => {
+  return useQuery({
+    queryKey: missionKeys.tasks(missionId),
+    queryFn: () => api.getTasks(missionId),
+    enabled: !!missionId,
+  })
+}
+
+export const useCreateTask = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ missionId, data }: { missionId: string; data: TaskCreate }) =>
+      api.createTask(missionId, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: missionKeys.tasks(variables.missionId) })
+    },
+  })
+}
+
+export const useUpdateTask = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ missionId, taskId, data }: { missionId: string; taskId: string; data: TaskUpdate }) =>
+      api.updateTask(missionId, taskId, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: missionKeys.tasks(variables.missionId) })
+    },
+  })
+}
+
+export const useDeleteTask = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ missionId, taskId }: { missionId: string; taskId: string }) =>
+      api.deleteTask(missionId, taskId),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: missionKeys.tasks(variables.missionId) })
+    },
+  })
+}
+
+export const useReorderTasks = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ missionId, items }: { missionId: string; items: TaskReorderItem[] }) =>
+      api.reorderTasks(missionId, items),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: missionKeys.tasks(variables.missionId) })
     },
   })
 }
