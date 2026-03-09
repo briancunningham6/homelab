@@ -1,13 +1,13 @@
 """add creates_task fields to suggested_actions
 
-Revision ID: add_creates_task_to_suggested_actions
+Revision ID: add_creates_task
 Revises: add_task_reminder_sent
 Create Date: 2026-03-09
 """
 from alembic import op
 import sqlalchemy as sa
 
-revision = 'add_creates_task_to_suggested_actions'
+revision = 'add_creates_task'
 down_revision = 'add_task_reminder_sent'
 branch_labels = None
 depends_on = None
