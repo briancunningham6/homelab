@@ -1,6 +1,7 @@
 """Tasks API — per-mission task list."""
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from datetime import datetime, timezone
 from typing import List
 from uuid import UUID
@@ -51,9 +52,8 @@ def create_task(mission_id: UUID, body: TaskCreate, db: Session = Depends(get_db
 
     # Place at end of active list
     max_order = (
-        db.query(MissionTask.sort_order)
+        db.query(func.max(MissionTask.sort_order))
         .filter(MissionTask.mission_id == mission_id, MissionTask.status != "done")
-        .order_by(MissionTask.sort_order.desc())
         .scalar()
     )
     next_order = (max_order or 0) + 1
