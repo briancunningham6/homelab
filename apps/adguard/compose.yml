@@ -8,9 +8,8 @@ services:
       # DNS (required for network DNS)
       - "53:53/tcp"
       - "53:53/udp"
-      # DNS over HTTPS (optional)
-      # Disabled: host 443 is used by Caddy
-      # - "443:443/tcp"
+      # AdGuard web UI/API (moved to 3000 to avoid Caddy using :80)
+      - "3000:3000/tcp"
       # DNS over TLS (optional)
       - "853:853/tcp"
       # DNS over QUIC (optional)
@@ -30,13 +29,11 @@ services:
     networks:
       - caddy-net
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:80/"]
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:3000/"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
-    # Note: AdGuard uses port 3000 for web UI internally,
-    # but we access via Caddy at adguard.home
 
 networks:
   caddy-net:

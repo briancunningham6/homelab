@@ -12,6 +12,8 @@ services:
       - NTFY_AUTH_FILE=/var/lib/ntfy/auth.db
       - NTFY_AUTH_DEFAULT_ACCESS=read-write
       - NTFY_BEHIND_PROXY=true
+      # Enables iOS instant notifications relay via ntfy.sh while remaining self-hosted.
+      - NTFY_UPSTREAM_BASE_URL=${NTFY_UPSTREAM_BASE_URL:-https://ntfy.sh}
     volumes:
       - ./data/cache:/var/cache/ntfy
       - ./data/lib:/var/lib/ntfy
