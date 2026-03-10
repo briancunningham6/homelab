@@ -1,4 +1,5 @@
 import { ProviderSettings } from '../components/ProviderSettings'
+import { IntegrationSettings } from '../components/IntegrationSettings'
 import '../styles/Settings.css'
 
 export const Settings: React.FC = () => {
@@ -49,18 +50,7 @@ export const Settings: React.FC = () => {
 
         <section className="settings-section">
           <h2>External Services</h2>
-          <div className="placeholder-notice">
-            <div className="placeholder-icon">🔌</div>
-            <h3>Coming in Phase 3</h3>
-            <p>
-              Configure external service integrations for agent tools.
-            </p>
-            <ul className="feature-list">
-              <li>Tavily API (web search)</li>
-              <li>Document parsing services</li>
-              <li>Code execution sandbox settings</li>
-            </ul>
-          </div>
+          <IntegrationSettings />
         </section>
       </div>
     </div>

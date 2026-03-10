@@ -12,6 +12,7 @@ from app.models.llm_provider import LLMProvider
 from app.models.suggested_action import SuggestedAction, ActionType, ActionPriority, ActionStatus
 from app.utils.encryption import decrypt_api_key
 from app.tools import tool_registry
+from app.api.integrations import get_integration_value
 
 
 def _parse_suggestion_date(value):
@@ -278,11 +279,12 @@ Use these tools when appropriate to provide better assistance. Always explain wh
                         "tool_id": tool_use["id"],
                     }
 
-                    # Execute tool — inject db_session and mission_id for tools that need them
+                    # Execute tool — inject db_session, mission_id, and integration keys
                     result = await tool_registry.execute(
                         tool_use["name"],
                         db_session=self.db,
                         mission_id=mission_id_val,
+                        tavily_api_key=get_integration_value("tavily_api_key", self.db),
                         **tool_use["input"]
                     )
 
@@ -488,11 +490,12 @@ Use these tools when appropriate to provide better assistance. Always explain wh
                     except json.JSONDecodeError:
                         args = {}
 
-                    # Execute tool — inject db_session and mission_id for tools that need them
+                    # Execute tool — inject db_session, mission_id, and integration keys
                     result = await tool_registry.execute(
                         tool_call["name"],
                         db_session=self.db,
                         mission_id=mission_id_val,
+                        tavily_api_key=get_integration_value("tavily_api_key", self.db),
                         **args
                     )
 

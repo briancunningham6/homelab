@@ -44,11 +44,12 @@ class WebSearchTool(BaseTool):
         Returns:
             ToolResult with search results
         """
-        api_key = os.getenv("TAVILY_API_KEY")
+        # Prefer injected key (from DB via chat service), fall back to env var
+        api_key = kwargs.get("tavily_api_key") or os.getenv("TAVILY_API_KEY")
         if not api_key:
             return ToolResult(
                 success=False,
-                error="Tavily API key not configured. Set TAVILY_API_KEY environment variable.",
+                error="Tavily API key not configured. Add it in Settings > External Services.",
             )
 
         try:
