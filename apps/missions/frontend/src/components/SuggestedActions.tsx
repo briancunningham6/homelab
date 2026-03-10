@@ -128,7 +128,7 @@ const SuggestedActions = ({ missionId, onSendToChat, onCollapse }: SuggestedActi
         <h3 className="suggested-actions-title">Suggestions</h3>
         <div className="suggested-actions-header-btns">
           <button
-            className="btn btn-history"
+            className="btn-history"
             onClick={() => setShowHistory(true)}
             title="View accepted actions history"
           >
@@ -136,7 +136,7 @@ const SuggestedActions = ({ missionId, onSendToChat, onCollapse }: SuggestedActi
           </button>
           {onCollapse && (
             <button
-              className="btn btn-collapse-suggestions"
+              className="btn-collapse-suggestions"
               onClick={onCollapse}
               title="Hide Suggested Actions"
             >
