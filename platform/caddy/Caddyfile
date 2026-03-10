@@ -28,7 +28,7 @@ http://backup.home {
 }
 
 http://adguard.home {
-    reverse_proxy adguard:80
+    reverse_proxy adguard:3000
 }
 
 http://updates.home {

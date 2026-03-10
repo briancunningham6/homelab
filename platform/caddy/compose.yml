@@ -10,6 +10,8 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./data/caddy_data:/data
       - ./data/caddy_config:/config
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - caddy-net
 

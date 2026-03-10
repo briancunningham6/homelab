@@ -32,18 +32,47 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(({ missionId }, ref) => {
 
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimerRef = useRef<number | null>(null)
+  const connectTimeoutRef = useRef<number | null>(null)
+  const reconnectAttemptsRef = useRef(0)
+  const outboundQueueRef = useRef<string[]>([])
+  const isStreamingRef = useRef(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const sendOrQueue = (payload: string) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(payload)
+      return
+    }
+    outboundQueueRef.current.push(payload)
+    setError('Reconnecting… queued your message')
+
+    // If socket is missing/closed, kick a reconnect immediately
+    if (!wsRef.current || wsRef.current.readyState === WebSocket.CLOSED) {
+      reconnectTimerRef.current && window.clearTimeout(reconnectTimerRef.current)
+      reconnectTimerRef.current = window.setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('missions-chat-reconnect'))
+      }, 100)
+    }
+  }
+
+  const flushQueue = () => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
+    while (outboundQueueRef.current.length > 0) {
+      const next = outboundQueueRef.current.shift()
+      if (next) wsRef.current.send(next)
+    }
+  }
 
   // Expose sendMessage to parent via ref
   useImperativeHandle(ref, () => ({
     sendMessage: (text: string) => {
-      if (!text.trim() || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
+      if (!text.trim()) return
       setMessages((prev) => [
         ...prev,
         { id: 'pending', role: 'user', content: text.trim() },
       ])
-      wsRef.current.send(JSON.stringify({ type: 'message', content: text.trim(), attachments: [] }))
+      sendOrQueue(JSON.stringify({ type: 'message', content: text.trim(), attachments: [] }))
       setIsStreaming(true)
       setError(null)
     },
@@ -58,22 +87,50 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(({ missionId }, ref) => {
     scrollToBottom()
   }, [messages])
 
-  // WebSocket connection (auto-reconnect)
+  useEffect(() => {
+    isStreamingRef.current = isStreaming
+  }, [isStreaming])
+
+  // WebSocket connection (auto-reconnect with backoff + timeout)
   useEffect(() => {
     let cancelled = false
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const wsUrl = `${protocol}//${window.location.host}/api/missions/${missionId}/chat`
 
+    const scheduleReconnect = () => {
+      if (cancelled) return
+      reconnectAttemptsRef.current += 1
+      const backoff = Math.min(10000, 1000 * 2 ** (reconnectAttemptsRef.current - 1))
+      const jitter = Math.floor(Math.random() * 350)
+      const delay = backoff + jitter
+
+      setError(`Connection lost. Reconnecting… (${Math.round(delay / 1000)}s)`)
+      if (reconnectTimerRef.current) window.clearTimeout(reconnectTimerRef.current)
+      reconnectTimerRef.current = window.setTimeout(connect, delay)
+    }
+
     const connect = () => {
       if (cancelled) return
+      if (wsRef.current && (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING)) {
+        return
+      }
 
       const ws = new WebSocket(wsUrl)
       wsRef.current = ws
 
+      if (connectTimeoutRef.current) window.clearTimeout(connectTimeoutRef.current)
+      connectTimeoutRef.current = window.setTimeout(() => {
+        if (ws.readyState === WebSocket.CONNECTING) {
+          ws.close()
+        }
+      }, 8000)
+
       ws.onopen = () => {
+        reconnectAttemptsRef.current = 0
+        if (connectTimeoutRef.current) window.clearTimeout(connectTimeoutRef.current)
         setIsConnected(true)
         setError(null)
-        console.log('WebSocket connected')
+        flushQueue()
       }
 
       ws.onmessage = (event) => {
@@ -153,26 +210,35 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(({ missionId }, ref) => {
         }
       }
 
-      ws.onerror = (event) => {
-        console.error('WebSocket error:', event)
+      ws.onerror = () => {
+        // onclose handles retries; keep this quiet to reduce noisy UI
       }
 
       ws.onclose = () => {
+        if (connectTimeoutRef.current) window.clearTimeout(connectTimeoutRef.current)
         setIsConnected(false)
-        if (!cancelled) {
-          setError('Connection lost. Reconnecting...')
-          reconnectTimerRef.current = window.setTimeout(connect, 1500)
-        }
+        if (isStreamingRef.current) setIsStreaming(false)
+        if (!cancelled) scheduleReconnect()
       }
     }
+
+    const forceReconnect = () => {
+      if (cancelled) return
+      if (wsRef.current?.readyState === WebSocket.OPEN) return
+      connect()
+    }
+
+    window.addEventListener('online', forceReconnect)
+    window.addEventListener('missions-chat-reconnect', forceReconnect)
 
     connect()
 
     return () => {
       cancelled = true
-      if (reconnectTimerRef.current) {
-        window.clearTimeout(reconnectTimerRef.current)
-      }
+      window.removeEventListener('online', forceReconnect)
+      window.removeEventListener('missions-chat-reconnect', forceReconnect)
+      if (reconnectTimerRef.current) window.clearTimeout(reconnectTimerRef.current)
+      if (connectTimeoutRef.current) window.clearTimeout(connectTimeoutRef.current)
       wsRef.current?.close()
     }
   }, [missionId])
@@ -244,7 +310,7 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(({ missionId }, ref) => {
   }
 
   const handleSend = async () => {
-    if ((!input.trim() && attachments.length === 0) || !isConnected || isStreaming) return
+    if ((!input.trim() && attachments.length === 0) || isStreaming) return
 
     const userMessage = input.trim()
     const filesToSend = [...attachments]
@@ -283,20 +349,15 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(({ missionId }, ref) => {
       })
     )
 
-    // Send to WebSocket
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(
-        JSON.stringify({
-          type: 'message',
-          content: userMessage,
-          attachments: fileData,
-        })
-      )
-      setIsStreaming(true)
-      setError(null)
-    } else {
-      setError('Not connected to chat server')
-    }
+    sendOrQueue(
+      JSON.stringify({
+        type: 'message',
+        content: userMessage,
+        attachments: fileData,
+      })
+    )
+    setIsStreaming(true)
+    setError(null)
   }
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -408,7 +469,7 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(({ missionId }, ref) => {
             <button
               className="btn btn-secondary attach-btn"
               onClick={() => fileInputRef.current?.click()}
-              disabled={!isConnected || isStreaming}
+              disabled={isStreaming}
               title="Attach file"
             >
               📎
@@ -423,16 +484,16 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(({ missionId }, ref) => {
               placeholder={
                 isConnected
                   ? 'Type your message... (Shift+Enter for new line)'
-                  : 'Connecting to chat server...'
+                  : 'Type your message... (will send when reconnected)'
               }
-              disabled={!isConnected || isStreaming}
+              disabled={isStreaming}
               rows={3}
             />
 
             <button
               className="btn btn-primary chat-send-btn"
               onClick={handleSend}
-              disabled={!isConnected || isStreaming || (!input.trim() && attachments.length === 0)}
+              disabled={isStreaming || (!input.trim() && attachments.length === 0)}
             >
               {isStreaming ? 'Sending...' : 'Send'}
             </button>
