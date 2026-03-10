@@ -65,6 +65,7 @@ class CreateTaskTool(BaseTool):
                 db_session.query(MissionTask.sort_order)
                 .filter(MissionTask.mission_id == mission_id, MissionTask.status != "done")
                 .order_by(MissionTask.sort_order.desc())
+                .limit(1)
                 .scalar()
             )
 
