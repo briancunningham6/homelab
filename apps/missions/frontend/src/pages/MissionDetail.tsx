@@ -37,6 +37,7 @@ export const MissionDetail: React.FC = () => {
 
   const [imagePreview, setImagePreview] = useState<{ url: string; name: string } | null>(null)
 
+  const [showSuggestions, setShowSuggestions] = useState(true)
   const [showResetModal, setShowResetModal] = useState(false)
   const [resetSelections, setResetSelections] = useState({
     messages: false,
@@ -408,16 +409,27 @@ export const MissionDetail: React.FC = () => {
         )}
 
         {activeTab === 'agent' && (
-          <div className="agent-tab-layout">
+          <div className={`agent-tab-layout ${showSuggestions ? '' : 'suggestions-hidden'}`}>
             <div className="agent-chat-section">
               <Chat ref={chatRef} missionId={id!} />
             </div>
-            <div className="agent-suggestions-section">
-              <SuggestedActions
-                missionId={id!}
-                onSendToChat={(msg) => chatRef.current?.sendMessage(msg)}
-              />
-            </div>
+            {showSuggestions ? (
+              <div className="agent-suggestions-section">
+                <SuggestedActions
+                  missionId={id!}
+                  onSendToChat={(msg) => chatRef.current?.sendMessage(msg)}
+                  onCollapse={() => setShowSuggestions(false)}
+                />
+              </div>
+            ) : (
+              <button
+                className="suggestions-show-btn"
+                onClick={() => setShowSuggestions(true)}
+                title="Show Suggested Actions"
+              >
+                💡
+              </button>
+            )}
           </div>
         )}
       </div>

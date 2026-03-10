@@ -13,6 +13,33 @@
   margin-bottom: 16px;
 }
 
+.suggested-actions-header-btns {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-collapse-suggestions {
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 6px;
+  width: 28px;
+  height: 28px;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #666;
+  transition: background 0.2s, color 0.2s;
+  padding: 0;
+}
+
+.btn-collapse-suggestions:hover {
+  background: rgba(255, 255, 255, 0.9);
+  color: #333;
+}
+
 .suggested-actions-title {
   margin: 0;
   font-size: 18px;

@@ -6,9 +6,10 @@ import { useState, useRef, useEffect } from 'react'
 interface SuggestedActionsProps {
   missionId: string
   onSendToChat?: (message: string) => void
+  onCollapse?: () => void
 }
 
-const SuggestedActions = ({ missionId, onSendToChat }: SuggestedActionsProps) => {
+const SuggestedActions = ({ missionId, onSendToChat, onCollapse }: SuggestedActionsProps) => {
   const { data: actions, isLoading } = useSuggestedActions(missionId, 'pending')
   const updateAction = useUpdateSuggestedAction()
   const [showHistory, setShowHistory] = useState(false)
@@ -125,13 +126,24 @@ const SuggestedActions = ({ missionId, onSendToChat }: SuggestedActionsProps) =>
     <div className="suggested-actions-container">
       <div className="suggested-actions-header">
         <h3 className="suggested-actions-title">Suggested Actions</h3>
-        <button
-          className="btn btn-history"
-          onClick={() => setShowHistory(true)}
-          title="View accepted actions history"
-        >
-          📋 History
-        </button>
+        <div className="suggested-actions-header-btns">
+          <button
+            className="btn btn-history"
+            onClick={() => setShowHistory(true)}
+            title="View accepted actions history"
+          >
+            📋 History
+          </button>
+          {onCollapse && (
+            <button
+              className="btn btn-collapse-suggestions"
+              onClick={onCollapse}
+              title="Hide Suggested Actions"
+            >
+              ✕
+            </button>
+          )}
+        </div>
       </div>
 
       {(!actions || actions.length === 0) ? (
