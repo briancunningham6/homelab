@@ -28,12 +28,12 @@
   font-size: 13px;
   line-height: 1;
   cursor: pointer;
-  display: flex;
+  display: flex !important;
   align-items: center;
   justify-content: center;
   color: #666;
   transition: background 0.2s, color 0.2s;
-  padding: 0;
+  padding: 0 !important;
 }
 
 .btn-collapse-suggestions:hover {
@@ -59,10 +59,10 @@
 .btn-history {
   width: 28px;
   height: 28px;
-  padding: 0;
+  padding: 0 !important;
   font-size: 14px;
   line-height: 1;
-  display: flex;
+  display: flex !important;
   align-items: center;
   justify-content: center;
   background: white;
