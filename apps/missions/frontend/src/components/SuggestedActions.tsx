@@ -1,23 +1,73 @@
 import { useSuggestedActions, useUpdateSuggestedAction } from '../hooks/useMissions'
 import type { SuggestedAction } from '../types'
 import '../styles/SuggestedActions.css'
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 
 interface SuggestedActionsProps {
   missionId: string
+  onSendToChat?: (message: string) => void
 }
 
-const SuggestedActions = ({ missionId }: SuggestedActionsProps) => {
+const SuggestedActions = ({ missionId, onSendToChat }: SuggestedActionsProps) => {
   const { data: actions, isLoading } = useSuggestedActions(missionId, 'pending')
   const updateAction = useUpdateSuggestedAction()
   const [showHistory, setShowHistory] = useState(false)
+  const [expandedActionId, setExpandedActionId] = useState<string | null>(null)
+  const [responseText, setResponseText] = useState('')
+  const responseTextareaRef = useRef<HTMLTextAreaElement>(null)
 
-  const handleAccept = async (action: SuggestedAction) => {
+  // Focus textarea when a card expands
+  useEffect(() => {
+    if (expandedActionId) {
+      setTimeout(() => responseTextareaRef.current?.focus(), 50)
+    }
+  }, [expandedActionId])
+
+  const getResponsePlaceholder = (type: string) => {
+    switch (type) {
+      case 'info_request':
+        return 'Provide the requested information...'
+      case 'agent_action':
+        return 'Any specific instructions for the agent? (optional)'
+      default:
+        return 'Add any details about how you\'re handling this... (optional)'
+    }
+  }
+
+  const buildChatMessage = (action: SuggestedAction, response: string): string => {
+    const base = `I've accepted the suggestion: "${action.title}"`
+    return response.trim() ? `${base}\n\n${response.trim()}` : base
+  }
+
+  const handleAcceptClick = (action: SuggestedAction) => {
+    setExpandedActionId(action.id)
+    setResponseText('')
+  }
+
+  const handleSubmitWithResponse = async (action: SuggestedAction) => {
     await updateAction.mutateAsync({
       missionId,
       actionId: action.id,
       data: { status: 'accepted' },
     })
+    onSendToChat?.(buildChatMessage(action, responseText))
+    setExpandedActionId(null)
+    setResponseText('')
+  }
+
+  const handleSkipAndAccept = async (action: SuggestedAction) => {
+    await updateAction.mutateAsync({
+      missionId,
+      actionId: action.id,
+      data: { status: 'accepted' },
+    })
+    setExpandedActionId(null)
+    setResponseText('')
+  }
+
+  const handleCancelExpand = () => {
+    setExpandedActionId(null)
+    setResponseText('')
   }
 
   const handleDefer = async (action: SuggestedAction) => {
@@ -119,29 +169,80 @@ const SuggestedActions = ({ missionId }: SuggestedActionsProps) => {
                 <strong>Related to:</strong> {action.related_goal}
               </div>
             )}
-            <div className="action-buttons">
-              <button
-                className="btn btn-accept"
-                onClick={() => handleAccept(action)}
-                disabled={updateAction.isPending}
-              >
-                ✓ Accept
-              </button>
-              <button
-                className="btn btn-defer"
-                onClick={() => handleDefer(action)}
-                disabled={updateAction.isPending}
-              >
-                ⏰ Defer
-              </button>
-              <button
-                className="btn btn-dismiss"
-                onClick={() => handleDismiss(action)}
-                disabled={updateAction.isPending}
-              >
-                ✕ Dismiss
-              </button>
-            </div>
+
+            {expandedActionId === action.id ? (
+              <div className="action-response-form">
+                <label className="action-response-label">
+                  {action.type === 'info_request'
+                    ? 'Your response:'
+                    : 'Add a comment (optional):'}
+                </label>
+                <textarea
+                  ref={responseTextareaRef}
+                  className="action-response-textarea"
+                  value={responseText}
+                  onChange={(e) => setResponseText(e.target.value)}
+                  placeholder={getResponsePlaceholder(action.type)}
+                  rows={3}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                      e.preventDefault()
+                      handleSubmitWithResponse(action)
+                    }
+                    if (e.key === 'Escape') handleCancelExpand()
+                  }}
+                />
+                <div className="action-response-buttons">
+                  <button
+                    className="btn btn-cancel-response"
+                    onClick={handleCancelExpand}
+                    disabled={updateAction.isPending}
+                  >
+                    Cancel
+                  </button>
+                  {action.type !== 'info_request' && (
+                    <button
+                      className="btn btn-skip-accept"
+                      onClick={() => handleSkipAndAccept(action)}
+                      disabled={updateAction.isPending}
+                    >
+                      Accept only
+                    </button>
+                  )}
+                  <button
+                    className="btn btn-submit-response"
+                    onClick={() => handleSubmitWithResponse(action)}
+                    disabled={updateAction.isPending || (action.type === 'info_request' && !responseText.trim())}
+                  >
+                    {updateAction.isPending ? 'Sending...' : 'Accept & send to chat'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="action-buttons">
+                <button
+                  className="btn btn-accept"
+                  onClick={() => handleAcceptClick(action)}
+                  disabled={updateAction.isPending}
+                >
+                  ✓ Accept
+                </button>
+                <button
+                  className="btn btn-defer"
+                  onClick={() => handleDefer(action)}
+                  disabled={updateAction.isPending}
+                >
+                  ⏰ Defer
+                </button>
+                <button
+                  className="btn btn-dismiss"
+                  onClick={() => handleDismiss(action)}
+                  disabled={updateAction.isPending}
+                >
+                  ✕ Dismiss
+                </button>
+              </div>
+            )}
           </div>
         ))}
         </div>

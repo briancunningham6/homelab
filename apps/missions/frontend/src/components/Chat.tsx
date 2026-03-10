@@ -1,10 +1,14 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react'
 import { useMissionFiles } from '../hooks/useMissions'
 import type { Message } from '../types'
 import '../styles/Chat.css'
 
 interface ChatProps {
   missionId: string
+}
+
+export interface ChatHandle {
+  sendMessage: (text: string) => void
 }
 
 interface StreamingMessage {
@@ -17,7 +21,7 @@ interface StreamingMessage {
   model_used?: string
 }
 
-export const Chat: React.FC<ChatProps> = ({ missionId }) => {
+export const Chat = forwardRef<ChatHandle, ChatProps>(({ missionId }, ref) => {
   const [messages, setMessages] = useState<StreamingMessage[]>([])
   const [input, setInput] = useState('')
   const [isConnected, setIsConnected] = useState(false)
@@ -30,6 +34,20 @@ export const Chat: React.FC<ChatProps> = ({ missionId }) => {
   const reconnectTimerRef = useRef<number | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Expose sendMessage to parent via ref
+  useImperativeHandle(ref, () => ({
+    sendMessage: (text: string) => {
+      if (!text.trim() || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
+      setMessages((prev) => [
+        ...prev,
+        { id: 'pending', role: 'user', content: text.trim() },
+      ])
+      wsRef.current.send(JSON.stringify({ type: 'message', content: text.trim(), attachments: [] }))
+      setIsStreaming(true)
+      setError(null)
+    },
+  }))
 
   // Auto-scroll to bottom
   const scrollToBottom = () => {
@@ -412,4 +430,6 @@ export const Chat: React.FC<ChatProps> = ({ missionId }) => {
       </div>
     </div>
   )
-}
+})
+
+Chat.displayName = 'Chat'

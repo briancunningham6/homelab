@@ -1,8 +1,8 @@
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useMission, useMissionFiles, useDeleteMission, useDeleteFile, useUpdateMission, useSuggestedActions } from '../hooks/useMissions'
 import { FileUpload } from '../components/FileUpload'
-import { Chat } from '../components/Chat'
+import { Chat, type ChatHandle } from '../components/Chat'
 import SuggestedActions from '../components/SuggestedActions'
 import { MissionNotes } from '../components/MissionNotes'
 import { MissionTasks } from '../components/MissionTasks'
@@ -23,6 +23,8 @@ export const MissionDetail: React.FC = () => {
     status: '',
   })
 
+  const chatRef = useRef<ChatHandle>(null)
+
   const { data: mission, isLoading: missionLoading, error: missionError } = useMission(id!)
   const { data: files, isLoading: filesLoading } = useMissionFiles(id!)
   const { data: pendingActions } = useSuggestedActions(id!, 'pending')
@@ -32,6 +34,49 @@ export const MissionDetail: React.FC = () => {
 
   const hasPendingSuggestions = pendingActions && pendingActions.length > 0
   const [notifState, setNotifState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
+
+  const [showResetModal, setShowResetModal] = useState(false)
+  const [resetSelections, setResetSelections] = useState({
+    messages: false,
+    suggested_actions: false,
+    tasks: false,
+    notes: false,
+  })
+  const [isResetting, setIsResetting] = useState(false)
+
+  const resetLabels: Record<keyof typeof resetSelections, string> = {
+    messages: 'Chat messages',
+    suggested_actions: 'Suggested actions',
+    tasks: 'Tasks',
+    notes: 'Notes',
+  }
+
+  const handleOpenReset = () => {
+    setResetSelections({ messages: false, suggested_actions: false, tasks: false, notes: false })
+    setShowResetModal(true)
+  }
+
+  const handleConfirmReset = async () => {
+    const noneSelected = !Object.values(resetSelections).some(Boolean)
+    if (noneSelected) return
+
+    setIsResetting(true)
+    try {
+      const response = await fetch(`/api/missions/${id}/reset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(resetSelections),
+      })
+      if (!response.ok) throw new Error('Reset failed')
+      setShowResetModal(false)
+      // Reload the page to reflect cleared data
+      window.location.reload()
+    } catch {
+      alert('Failed to reset mission data. Please try again.')
+    } finally {
+      setIsResetting(false)
+    }
+  }
 
   const handleTestNotification = async () => {
     setNotifState('sending')
@@ -153,6 +198,9 @@ export const MissionDetail: React.FC = () => {
               <>
                 <button className="btn btn-primary btn-small" onClick={handleSaveEdit} disabled={updateMission.isPending}>
                   {updateMission.isPending ? 'Saving...' : 'Save'}
+                </button>
+                <button className="btn btn-reset btn-small" onClick={handleOpenReset}>
+                  Reset data
                 </button>
                 <button className="btn btn-secondary btn-small" onClick={handleCancelEdit}>
                   Cancel
@@ -355,14 +403,61 @@ export const MissionDetail: React.FC = () => {
         {activeTab === 'agent' && (
           <div className="agent-tab-layout">
             <div className="agent-chat-section">
-              <Chat missionId={id!} />
+              <Chat ref={chatRef} missionId={id!} />
             </div>
             <div className="agent-suggestions-section">
-              <SuggestedActions missionId={id!} />
+              <SuggestedActions
+                missionId={id!}
+                onSendToChat={(msg) => chatRef.current?.sendMessage(msg)}
+              />
             </div>
           </div>
         )}
       </div>
+
+      {showResetModal && (
+        <div className="reset-modal-overlay" onClick={() => !isResetting && setShowResetModal(false)}>
+          <div className="reset-modal" onClick={(e) => e.stopPropagation()}>
+            <h3 className="reset-modal-title">Reset mission data</h3>
+            <p className="reset-modal-description">
+              Select what to permanently clear. This cannot be undone.
+            </p>
+
+            <div className="reset-checkboxes">
+              {(Object.keys(resetSelections) as Array<keyof typeof resetSelections>).map((key) => (
+                <label key={key} className="reset-checkbox-row">
+                  <input
+                    type="checkbox"
+                    checked={resetSelections[key]}
+                    onChange={(e) =>
+                      setResetSelections((prev) => ({ ...prev, [key]: e.target.checked }))
+                    }
+                    disabled={isResetting}
+                  />
+                  <span>{resetLabels[key]}</span>
+                </label>
+              ))}
+            </div>
+
+            <div className="reset-modal-actions">
+              <button
+                className="btn btn-secondary"
+                onClick={() => setShowResetModal(false)}
+                disabled={isResetting}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-danger"
+                onClick={handleConfirmReset}
+                disabled={isResetting || !Object.values(resetSelections).some(Boolean)}
+              >
+                {isResetting ? 'Clearing...' : 'Clear selected'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

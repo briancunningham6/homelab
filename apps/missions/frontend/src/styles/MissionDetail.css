@@ -429,3 +429,86 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* Reset button (edit toolbar) */
+.btn-reset {
+  background: white;
+  color: #e53935;
+  border: 1px solid #e53935;
+  padding: 6px 12px;
+  font-size: 13px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-reset:hover {
+  background: #fdecea;
+}
+
+/* Reset modal */
+.reset-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.reset-modal {
+  background: white;
+  border-radius: 12px;
+  padding: 28px;
+  width: 360px;
+  max-width: calc(100vw - 32px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+}
+
+.reset-modal-title {
+  margin: 0 0 8px 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #222;
+}
+
+.reset-modal-description {
+  margin: 0 0 20px 0;
+  font-size: 14px;
+  color: #666;
+  line-height: 1.5;
+}
+
+.reset-checkboxes {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.reset-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: #333;
+  cursor: pointer;
+}
+
+.reset-checkbox-row input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #e53935;
+}
+
+.reset-checkbox-row input[type="checkbox"]:disabled {
+  cursor: not-allowed;
+}
+
+.reset-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}

@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
 from uuid import UUID
+from pydantic import BaseModel
 
 from app.database import get_db
 from app.models.mission import Mission
@@ -95,6 +96,50 @@ async def update_mission(
     mission_dict["message_count"] = len(mission.messages)
 
     return MissionResponse(**mission_dict)
+
+
+class ResetOptions(BaseModel):
+    messages: bool = False
+    suggested_actions: bool = False
+    tasks: bool = False
+    notes: bool = False
+
+
+@router.post("/{mission_id}/reset")
+async def reset_mission_data(
+    mission_id: UUID,
+    options: ResetOptions,
+    db: Session = Depends(get_db),
+):
+    """Selectively clear mission data (messages, suggested actions, tasks, notes)."""
+    from app.models.message import Message
+    from app.models.suggested_action import SuggestedAction
+    from app.models.mission_task import MissionTask
+
+    mission = db.query(Mission).filter(Mission.id == mission_id).first()
+    if not mission:
+        raise HTTPException(status_code=404, detail="Mission not found")
+
+    cleared = []
+
+    if options.messages:
+        db.query(Message).filter(Message.mission_id == mission_id).delete()
+        cleared.append("messages")
+
+    if options.suggested_actions:
+        db.query(SuggestedAction).filter(SuggestedAction.mission_id == mission_id).delete()
+        cleared.append("suggested_actions")
+
+    if options.tasks:
+        db.query(MissionTask).filter(MissionTask.mission_id == mission_id).delete()
+        cleared.append("tasks")
+
+    if options.notes:
+        mission.notes = None
+        cleared.append("notes")
+
+    db.commit()
+    return {"cleared": cleared}
 
 
 @router.delete("/{mission_id}", status_code=204)

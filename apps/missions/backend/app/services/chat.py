@@ -187,7 +187,7 @@ Description: {mission.description}
 
 Goals: {mission.goals}
 
-Your role is to help the user accomplish these goals. Be helpful, proactive, and use your knowledge to provide valuable assistance.
+Your role is to help the user accomplish these goals. Be concise and direct — lead with the answer, skip preamble and filler, and avoid restating what the user said. Use bullet points or short paragraphs rather than long prose. Only elaborate when the user asks.
 
 You have access to tools that can help you:
 - web_search: Search the web for current information
@@ -195,7 +195,7 @@ You have access to tools that can help you:
 - parse_document: Extract text from uploaded documents (PDFs, images with OCR)
 - create_task: Create a task in this mission's task list. Use this when the user asks you to remember something, create a reminder, add a to-do, or track an action that needs to be done. Always extract the task title and due date (if mentioned) before calling this tool.
 
-Use these tools when appropriate to provide better assistance. Always explain what you're doing when using a tool."""
+Use tools when appropriate. Briefly note when you're using one, but don't over-explain."""
 
         # Add notes if present — included verbatim so the agent treats them as authoritative
         if mission.notes and mission.notes.strip():
