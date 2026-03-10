@@ -125,14 +125,14 @@ const SuggestedActions = ({ missionId, onSendToChat, onCollapse }: SuggestedActi
   return (
     <div className="suggested-actions-container">
       <div className="suggested-actions-header">
-        <h3 className="suggested-actions-title">Suggested Actions</h3>
+        <h3 className="suggested-actions-title">Suggestions</h3>
         <div className="suggested-actions-header-btns">
           <button
             className="btn btn-history"
             onClick={() => setShowHistory(true)}
             title="View accepted actions history"
           >
-            📋 History
+            📋
           </button>
           {onCollapse && (
             <button

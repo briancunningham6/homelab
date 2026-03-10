@@ -25,7 +25,8 @@
   border-radius: 6px;
   width: 28px;
   height: 28px;
-  font-size: 12px;
+  font-size: 13px;
+  line-height: 1;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -55,7 +56,23 @@
   font-size: 20px;
 }
 
-.btn-history,
+.btn-history {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  font-size: 14px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: white;
+  color: #6c5ce7;
+  border: 1px solid #6c5ce7;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
 .btn-back {
   padding: 6px 12px;
   font-size: 13px;
@@ -72,7 +89,6 @@
 .btn-back:hover {
   background: #6c5ce7;
   color: white;
-  transform: translateY(-1px);
   box-shadow: 0 2px 8px rgba(108, 92, 231, 0.3);
 }
 
