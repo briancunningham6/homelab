@@ -430,6 +430,75 @@
   cursor: not-allowed;
 }
 
+/* Image preview lightbox */
+.image-preview-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  cursor: zoom-out;
+}
+
+.image-preview-close {
+  position: fixed;
+  top: 20px;
+  right: 24px;
+  background: rgba(255, 255, 255, 0.15);
+  border: none;
+  color: white;
+  font-size: 20px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+
+.image-preview-close:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.image-preview-img {
+  max-width: 90vw;
+  max-height: 80vh;
+  object-fit: contain;
+  border-radius: 4px;
+  cursor: default;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
+}
+
+.image-preview-name {
+  margin-top: 16px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  cursor: default;
+}
+
+.image-preview-download {
+  color: white;
+  font-size: 13px;
+  font-weight: 500;
+  background: rgba(255, 255, 255, 0.15);
+  padding: 4px 12px;
+  border-radius: 4px;
+  text-decoration: none;
+  transition: background 0.2s;
+}
+
+.image-preview-download:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
 /* Reset button (edit toolbar) */
 .btn-reset {
   background: white;

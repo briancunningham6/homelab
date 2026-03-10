@@ -233,6 +233,16 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(({ missionId }, ref) => {
     setAttachments((prev) => prev.filter((_, i) => i !== index))
   }
 
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const imageItems = Array.from(e.clipboardData.items).filter(
+      (item) => item.kind === 'file' && item.type.startsWith('image/')
+    )
+    if (imageItems.length === 0) return
+    e.preventDefault()
+    const files = imageItems.map((item) => item.getAsFile()).filter(Boolean) as File[]
+    setAttachments((prev) => [...prev, ...files])
+  }
+
   const handleSend = async () => {
     if ((!input.trim() && attachments.length === 0) || !isConnected || isStreaming) return
 
@@ -409,6 +419,7 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(({ missionId }, ref) => {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={handleKeyPress}
+              onPaste={handlePaste}
               placeholder={
                 isConnected
                   ? 'Type your message... (Shift+Enter for new line)'

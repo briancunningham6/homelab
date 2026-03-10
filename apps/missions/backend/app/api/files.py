@@ -113,10 +113,12 @@ async def download_file(
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found on disk")
 
+    is_image = mission_file.mime_type and mission_file.mime_type.startswith("image/")
     return FileResponse(
         path=file_path,
-        filename=mission_file.original_name,
+        filename=None if is_image else mission_file.original_name,
         media_type=mission_file.mime_type,
+        headers={"Content-Disposition": "inline"} if is_image else {},
     )
 
 

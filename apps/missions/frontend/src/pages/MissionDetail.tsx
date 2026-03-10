@@ -35,6 +35,8 @@ export const MissionDetail: React.FC = () => {
   const hasPendingSuggestions = pendingActions && pendingActions.length > 0
   const [notifState, setNotifState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
 
+  const [imagePreview, setImagePreview] = useState<{ url: string; name: string } | null>(null)
+
   const [showResetModal, setShowResetModal] = useState(false)
   const [resetSelections, setResetSelections] = useState({
     messages: false,
@@ -120,8 +122,13 @@ export const MissionDetail: React.FC = () => {
     }
   }
 
-  const handleViewFile = (fileId: string) => {
-    window.open(`/api/missions/${id}/files/${fileId}`, '_blank')
+  const handleViewFile = (fileId: string, mimeType?: string, name?: string) => {
+    const url = `/api/missions/${id}/files/${fileId}`
+    if (mimeType?.startsWith('image/')) {
+      setImagePreview({ url, name: name ?? 'Image' })
+    } else {
+      window.open(url, '_blank')
+    }
   }
 
   const handleEdit = () => {
@@ -356,11 +363,11 @@ export const MissionDetail: React.FC = () => {
                 <div className="files-list">
                   {files.map((file) => (
                     <div key={file.id} className="file-item">
-                      <span className="file-icon">📄</span>
+                      <span className="file-icon">{file.mime_type?.startsWith('image/') ? '🖼️' : '📄'}</span>
                       <button
                         className="file-name-button"
-                        onClick={() => handleViewFile(file.id)}
-                        title="Click to view/download"
+                        onClick={() => handleViewFile(file.id, file.mime_type, file.original_name)}
+                        title={file.mime_type?.startsWith('image/') ? 'Click to preview' : 'Click to download'}
                       >
                         {file.original_name}
                       </button>
@@ -414,6 +421,29 @@ export const MissionDetail: React.FC = () => {
           </div>
         )}
       </div>
+
+      {imagePreview && (
+        <div className="image-preview-overlay" onClick={() => setImagePreview(null)}>
+          <button className="image-preview-close" onClick={() => setImagePreview(null)}>✕</button>
+          <img
+            className="image-preview-img"
+            src={imagePreview.url}
+            alt={imagePreview.name}
+            onClick={(e) => e.stopPropagation()}
+          />
+          <div className="image-preview-name" onClick={(e) => e.stopPropagation()}>
+            {imagePreview.name}
+            <a
+              href={imagePreview.url}
+              download={imagePreview.name}
+              className="image-preview-download"
+              onClick={(e) => e.stopPropagation()}
+            >
+              Download
+            </a>
+          </div>
+        </div>
+      )}
 
       {showResetModal && (
         <div className="reset-modal-overlay" onClick={() => !isResetting && setShowResetModal(false)}>
