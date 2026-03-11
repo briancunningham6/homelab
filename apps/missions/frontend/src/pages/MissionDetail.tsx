@@ -13,7 +13,7 @@ type TabType = 'overview' | 'agent' | 'notes' | 'tasks'
 export const MissionDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const [activeTab, setActiveTab] = useState<TabType>('overview')
+  const [activeTab, setActiveTab] = useState<TabType>('agent')
   const [isEditing, setIsEditing] = useState(false)
   const [editForm, setEditForm] = useState({
     name: '',
@@ -37,7 +37,10 @@ export const MissionDetail: React.FC = () => {
 
   const [imagePreview, setImagePreview] = useState<{ url: string; name: string } | null>(null)
 
-  const [showSuggestions, setShowSuggestions] = useState(true)
+  const suggestionsKey = `mission-suggestions-${id}`
+  const [showSuggestions, setShowSuggestions] = useState<boolean>(
+    () => localStorage.getItem(suggestionsKey) !== 'hidden'
+  )
   const [showResetModal, setShowResetModal] = useState(false)
   const [resetSelections, setResetSelections] = useState({
     messages: false,
@@ -418,13 +421,19 @@ export const MissionDetail: React.FC = () => {
                 <SuggestedActions
                   missionId={id!}
                   onSendToChat={(msg) => chatRef.current?.sendMessage(msg)}
-                  onCollapse={() => setShowSuggestions(false)}
+                  onCollapse={() => {
+                    setShowSuggestions(false)
+                    localStorage.setItem(suggestionsKey, 'hidden')
+                  }}
                 />
               </div>
             ) : (
               <button
                 className="suggestions-show-btn"
-                onClick={() => setShowSuggestions(true)}
+                onClick={() => {
+                  setShowSuggestions(true)
+                  localStorage.removeItem(suggestionsKey)
+                }}
                 title="Show Suggested Actions"
               >
                 💡
