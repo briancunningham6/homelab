@@ -102,3 +102,43 @@
 .mission-footer small {
   margin: 0;
 }
+
+@media (max-width: 480px) {
+  .mission-card {
+    padding: 16px;
+  }
+
+  .mission-title {
+    font-size: 17px;
+  }
+
+  .mission-status {
+    font-size: 11px;
+    padding: 3px 8px;
+    white-space: nowrap;
+  }
+
+  .mission-description {
+    font-size: 14px;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    margin-bottom: 12px;
+  }
+
+  .mission-goals {
+    padding: 10px;
+    margin-bottom: 12px;
+  }
+
+  .mission-meta {
+    gap: 10px;
+    flex-wrap: wrap;
+    padding-top: 12px;
+  }
+
+  .meta-item {
+    font-size: 13px;
+  }
+}

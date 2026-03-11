@@ -90,3 +90,41 @@
 .footer p {
   margin: 0;
 }
+
+@media (display-mode: standalone) {
+  .header {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .header {
+    padding: 0 12px;
+  }
+
+  .header-content {
+    height: 52px;
+  }
+
+  .logo h1 {
+    font-size: 18px;
+  }
+
+  .nav {
+    gap: 2px;
+  }
+
+  .nav a {
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+
+  .main-content {
+    padding: 16px 12px;
+  }
+
+  .footer {
+    padding: 16px 12px;
+    font-size: 13px;
+  }
+}

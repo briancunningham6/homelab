@@ -625,3 +625,54 @@
   justify-content: flex-end;
   gap: 10px;
 }
+
+@media (max-width: 480px) {
+  .mission-detail .page-header h1 {
+    font-size: 20px;
+  }
+
+  .header-top {
+    margin-bottom: 8px;
+  }
+
+  .tabs {
+    gap: 0;
+    margin-bottom: 16px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tab {
+    padding: 10px 14px;
+    font-size: 13px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .mission-section {
+    padding: 16px;
+  }
+
+  .mission-section h2 {
+    font-size: 17px;
+    margin-bottom: 12px;
+  }
+
+  .overview-tab {
+    gap: 16px;
+  }
+
+  .settings-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .mission-name-input {
+    font-size: 20px;
+  }
+}

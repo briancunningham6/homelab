@@ -1,0 +1,10 @@
+{
+  "name": "Missions",
+  "short_name": "Missions",
+  "description": "AI Agent Mission Manager",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f5f5f5",
+  "theme_color": "#2196F3",
+  "orientation": "portrait"
+}

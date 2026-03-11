@@ -78,3 +78,27 @@
   color: #d32f2f;
   margin-bottom: 12px;
 }
+
+@media (max-width: 480px) {
+  .dashboard-header {
+    margin-bottom: 16px;
+  }
+
+  .dashboard-header h1 {
+    font-size: 22px;
+  }
+
+  .missions-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .empty-state {
+    padding: 48px 16px;
+  }
+
+  .empty-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+  }
+}
